@@ -1,33 +1,35 @@
-F = False
-T = True
+from arc_types import *
 
-ZERO = 0
-ONE = 1
-TWO = 2
-THREE = 3
-FOUR = 4
-FIVE = 5
-SIX = 6
-SEVEN = 7
-EIGHT = 8
-NINE = 9
-TEN = 10
+F: Boolean = False
+T: Boolean = True
 
-NEG_ONE = -1
-NEG_TWO = -2
+ZERO: Integer = 0
+ONE: Integer = 1
+TWO: Integer = 2
+THREE: Integer = 3
+FOUR: Integer = 4
+FIVE: Integer = 5
+SIX: Integer = 6
+SEVEN: Integer = 7
+EIGHT: Integer = 8
+NINE: Integer = 9
+TEN: Integer = 10
 
-DOWN = (1, 0)
-RIGHT = (0, 1)
-UP = (-1, 0)
-LEFT = (0, -1)
+NEG_ONE: Integer = -1
+NEG_TWO: Integer = -2
 
-ORIGIN = (0, 0)
-UNITY = (1, 1)
-NEG_UNITY = (-1, -1)
-UP_RIGHT = (-1, 1)
-DOWN_LEFT = (1, -1)
+DOWN: IntegerTuple = (1, 0)
+RIGHT: IntegerTuple = (0, 1)
+UP: IntegerTuple = (-1, 0)
+LEFT: IntegerTuple = (0, -1)
 
-ZERO_BY_TWO = (0, 2)
-TWO_BY_ZERO = (2, 0)
-TWO_BY_TWO = (2, 2)
-THREE_BY_THREE = (3, 3)
+ORIGIN: IntegerTuple = (0, 0)
+UNITY: IntegerTuple = (1, 1)
+NEG_UNITY: IntegerTuple = (-1, -1)
+UP_RIGHT: IntegerTuple = (-1, 1)
+DOWN_LEFT: IntegerTuple = (1, -1)
+
+ZERO_BY_TWO: IntegerTuple = (0, 2)
+TWO_BY_ZERO: IntegerTuple = (2, 0)
+TWO_BY_TWO: IntegerTuple = (2, 2)
+THREE_BY_THREE: IntegerTuple = (3, 3)
