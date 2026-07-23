@@ -917,7 +917,7 @@ def palette(
 
 def numcolors(
     element: Element
-) -> IntegerSet:
+) -> Integer:
     """ number of colors occurring in object or grid """
     return len(palette(element))
 
