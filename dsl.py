@@ -1522,3 +1522,18 @@ def vperiod(
         if pruned.issubset(normalized):
             return p
     return h
+
+
+def asset(
+    a: IntegerTuple,
+    b: IntegerTuple
+) -> Indices:
+    """ constructs a set """
+    return {a, b}
+
+
+def toset(
+    container: Tuple
+) -> FrozenSet:
+    """ conversion to set """
+    return set(container)
