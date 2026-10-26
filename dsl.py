@@ -1169,7 +1169,7 @@ def subgrid(
 def hsplit(
     grid: Grid,
     n: Integer
-) -> Tuple:
+) -> Tuple[Grid, ...]:
     """ split grid horizontally """
     h, w = len(grid), len(grid[0]) // n
     offset = len(grid[0]) % n != 0
@@ -1179,7 +1179,7 @@ def hsplit(
 def vsplit(
     grid: Grid,
     n: Integer
-) -> Tuple:
+) -> Tuple[Grid, ...]:
     """ split grid vertically """
     h, w = len(grid) // n, len(grid[0])
     offset = len(grid) % n != 0
