@@ -10,4 +10,4 @@ jobs:
       - name: Build Docker
         run: docker build -t arc-dsl .
       - name: Run tests
-        run: docker run arc-dsl -c "pytest -sxv test_solvers.py"
+        run: docker run arc-dsl -c "pytest -sxv"
