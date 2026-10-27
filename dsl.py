@@ -9,8 +9,8 @@ def identity(
 
 
 def add(
-    a: Union[Numerical, Boolean],
-    b: Union[Numerical, Boolean]
+    a: Union[Numerical, Boolean, Tuple[int, ...]],
+    b: Union[Numerical, Boolean, Tuple[int, ...]]
 ) -> Numerical:
     """ addition """
     if isinstance(a, int) and isinstance(b, int):
@@ -23,8 +23,8 @@ def add(
 
 
 def subtract(
-    a: Union[Numerical, Boolean],
-    b: Union[Numerical, Boolean]
+    a: Union[Numerical, Boolean, Tuple[int, ...]],
+    b: Union[Numerical, Boolean, Tuple[int, ...]]
 ) -> Numerical:
     """ subtraction """
     if isinstance(a, int) and isinstance(b, int):
@@ -37,8 +37,8 @@ def subtract(
 
 
 def multiply(
-    a: Union[Numerical, Boolean],
-    b: Union[Numerical, Boolean]
+    a: Union[Numerical, Boolean, Tuple[int, ...]],
+    b: Union[Numerical, Boolean, Tuple[int, ...]]
 ) -> Numerical:
     """ multiplication """
     if isinstance(a, int) and isinstance(b, int):
