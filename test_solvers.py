@@ -1,5 +1,25 @@
 import json
 import solvers
+import inspect
+from search.type_system import is_compatible
+from search.dsl_registry import load_registry
+from search.python_to_dsl import parse_solver
+from search.expression_validator import infer_expression_type
+from arc_types import Grid
+
+
+def hodelTasks() -> list[str]:
+    with open("solvers.py", "r") as f:
+        lines = f.read().split("\n")
+
+    lines = filter(lambda x: x.startswith("def solve_"), lines)
+    tasks: list = []
+
+    for line in lines:
+        task = line.removeprefix("def solve_")
+        tasks.append(task[:task.index("(")])
+
+    return tasks
 
 def loadFolder(folder: str) -> dict:    
     with open(f"../../ARC-AGI-2/data/{folder}.txt", "r") as f:
@@ -13,26 +33,69 @@ def loadFolder(folder: str) -> dict:
     
     return data
 
-def test_solvers() -> None:
+
+def test_grids() -> None:
     data: dict = loadFolder("training")
 
-    for name in dir(solvers):
-        if (name.startswith("solve_")):
-            taskId = name.removeprefix("solve_")
+    tasks = hodelTasks()
 
-            if (taskId == "e40b9e2f" or not taskId in data):
-                print(f"{taskId} task skipped")
+    for task in tasks:
+        if (not task in data):
+            print(f"{task} task skipped")
 
-                continue
+            continue
 
-            f = getattr(solvers, name)
-            
-            train = data[taskId]["train"]
+        f = getattr(solvers, f"solve_{task}")
+        
+        train = data[task]["train"]
 
-            for pair in train:
-                I, O = pair["input"], pair["output"]
+        for pair in train:
+            I, O = pair["input"], pair["output"]
 
-                I = tuple(map(tuple, I))
-                O = tuple(map(tuple, O))
+            I = tuple(map(tuple, I))
+            O = tuple(map(tuple, O))
 
-                assert(O == f(I))
+            assert(O == f(I))
+
+
+def test_types():
+    registry = load_registry()
+    errors = []
+
+    tasks = hodelTasks()
+
+    commentedTasks: set = {"e8dc4411", "29623171", "a2fd1cf0", "8d510a79", "a48eeaf7", "995c5fa3", "72322fa7", "6d58a25d", "6aa20dc0", "447fd412", "36d67576", "28e73c20", "6a1e5592", "0e206a2e", "d22278a0", "b527c5c6", "9d9215db", "f15e1fac", "234bbc79", "a64e4611", "a8c38be5", "b775ac94", "97a05b5b", "3e980e27", }
+    #commentedTasks.remove("e8dc4411")
+    count: int = 0
+
+    for i, task in enumerate(tasks): #TODO: remove enumerate
+        if (task in commentedTasks):
+            print(f"{task} task ignored")
+
+            continue
+
+        solver = getattr(solvers, f"solve_{task}")
+
+        if not callable(solver):
+            continue
+
+        try:
+            source = inspect.getsource(solver)
+            expression = parse_solver(source, registry)
+            result_type = infer_expression_type(expression, registry)
+
+            assert is_compatible(result_type, Grid) or is_compatible(Grid, result_type), (
+                f"{task}: type de retour attendu Grid, obtenu {result_type}"
+            )
+
+            count += 1
+
+        except Exception as exc:
+            print(f"{i}/{len(tasks)}")
+            print(source)
+            errors.append(f"{task}: {type(exc).__name__}: {exc}")
+            raise exc
+
+    print(f"{count}/{len(tasks)} passed tasks")
+
+    assert not errors, "\n".join(errors)
