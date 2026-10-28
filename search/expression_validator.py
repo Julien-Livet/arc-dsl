@@ -352,6 +352,26 @@ def infer_expression_type(expression, registry):
             if is_compatible(actual_type, expected_type) or is_compatible(expected_type, actual_type):
                 return actual_type
 
+        if expression.name == "merge":
+            (containers_type,) = actual_types
+
+            container_args = get_args(containers_type)
+            if not container_args:
+                return Any
+
+            inner_container_type = container_args[0]
+            inner_args = get_args(inner_container_type)
+
+            if inner_args:
+                return inner_container_type
+
+            return inner_container_type
+
+        if expression.name == "sizefilter":
+            container_type, size_type = actual_types
+
+            return container_type
+
         if expression.name == "sfilter":
             container_type, condition_type = actual_types
 
@@ -407,11 +427,6 @@ def infer_expression_type(expression, registry):
                     )
 
                     if element_type is not None:
-                        #print("APPLY function expression :", repr(function_expr))
-                        #print("APPLY function type :", repr(function_type))
-                        #print("APPLY container type :", repr(container_type))
-                        #print("APPLY element type :", repr(element_type))
-
                         return_type = infer_specialized_return(
                             function_expr,
                             function_type,
@@ -419,7 +434,6 @@ def infer_expression_type(expression, registry):
                             registry,
                         )
 
-                        #print("APPLY specialized return :", repr(return_type))
                         return Tuple[return_type, ...]
 
                 if container_origin is frozenset:
@@ -516,10 +530,7 @@ def infer_expression_type(expression, registry):
                         element_types.append(element_type)
 
             if not element_types:
-                raise TypeError(
-                    f"Impossible de déterminer le type des éléments de "
-                    f"{expression.name}."
-                )
+                element_types.append(Any)
 
             if expression.name in {"argmin", "argmax"}:
                 return (
@@ -543,14 +554,7 @@ def infer_expression_type(expression, registry):
                         "doit être une fonction de signature connue."
                     )
                 continue
-            #print("VALIDATOR expected :", repr(expected_type))
-            #print("VALIDATOR actual :", repr(actual_type))
-            #print("VALIDATOR actual -> expected :", is_compatible(
-            #    actual_type, expected_type
-            #))
-            #print("VALIDATOR expected -> actual :", is_compatible(
-            #    expected_type, actual_type
-            #))
+
             if not is_compatible(actual_type, expected_type) and not is_compatible(expected_type, actual_type):
                 raise TypeError(
                     f"Argument {parameter['name']} de {expression.name} : "
@@ -710,10 +714,6 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
         return infer_chain(h, g, f)
 
     if name == "lbind":
-        #print("LBIND expression :", repr(arguments[0]))
-        #print("LBIND fixed expression :", repr(arguments[1]))
-        #print("LBIND inferred function :", repr(actual_types[0]))
-        #print("LBIND inferred fixed type :", repr(actual_types[1]))
         specialized = _infer_partial_binding(
             "lbind",
             arguments[0],
@@ -828,11 +828,21 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
 
     if name == "power":
         function_type = actual_types[0]
-        n = arguments[1].value if isinstance(arguments[1], ConstantExpr) else None
+        n = (
+            arguments[1].value
+            if isinstance(arguments[1], ConstantExpr)
+            else None
+        )
+
+        if not isinstance(function_type, FunctionType):
+            raise TypeError("power attend une fonction connue.")
 
         if n is None:
+            return function_type
+
+        if not isinstance(n, int) or n < 0:
             raise TypeError(
-                "L'exposant de power doit être une constante connue."
+                "L'exposant de power doit être un entier positif ou nul."
             )
 
         return infer_power(function_type, n)
