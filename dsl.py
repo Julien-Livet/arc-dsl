@@ -65,7 +65,7 @@ def divide(
 
 
 def invert(
-    n: Numerical
+    n: Union[Numerical, Boolean, Tuple[int, ...]]
 ) -> Numerical:
     """ inversion with respect to addition """
     return -n if isinstance(n, int) else (-n[0], -n[1])
