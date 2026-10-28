@@ -53,37 +53,28 @@ def _infer_partial_binding(
         return None
 
     target_name = function_expression.name
-
     fixed_type = infer_expression_type(fixed_expression, registry)
+
     if not isinstance(fixed_type, FunctionType):
         return None
 
-    if target_name == "compose" and binding_name == "lbind":
-        return FunctionType(
-            parameter_types=(Any,),
-            return_type=fixed_type.return_type,
-        )
-
-    if target_name not in {"lbind", "rbind"}:
-        return None
-
-    # On récupère le type réel de la primitive fixée.
-    fixed_type = infer_expression_type(fixed_expression, registry)
-    if not isinstance(fixed_type, FunctionType):
-        return None
-
+    # lbind(compose, outer):
+    # reçoit inner et retourne une fonction composée.
     if target_name == "compose" and binding_name == "lbind":
         return FunctionType(
             parameter_types=(Any,),
             return_type=FunctionType(
                 parameter_types=(Any,),
-                return_type=fixed_type.return_type,
+                return_type=Any,
             ),
         )
 
-    # Pour lbind(rbind, f), la fonction résultante reçoit un argument
-    # puis retourne la signature obtenue en liant f à rbind.
+    # lbind(rbind, f):
+    # reçoit fixed et retourne f avec son dernier paramètre fixé.
     if target_name == "rbind" and binding_name == "lbind":
+        if fixed_type.variadic or fixed_type.arity < 1:
+            return None
+
         return FunctionType(
             parameter_types=(Any,),
             return_type=FunctionType(
@@ -93,9 +84,12 @@ def _infer_partial_binding(
             ),
         )
 
-    # Pour rbind(lbind, f), la fonction résultante reçoit un argument
-    # puis retourne la signature obtenue en liant f à lbind.
+    # rbind(lbind, f):
+    # reçoit fixed et retourne f avec son premier paramètre fixé.
     if target_name == "lbind" and binding_name == "rbind":
+        if fixed_type.variadic or fixed_type.arity < 1:
+            return None
+
         return FunctionType(
             parameter_types=(Any,),
             return_type=FunctionType(
@@ -106,7 +100,6 @@ def _infer_partial_binding(
         )
 
     return None
-
 
 def specialize_size(argument_types, function_expr, fixed_type=None):
     """Infère le type de retour de size."""
