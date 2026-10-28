@@ -1,5 +1,5 @@
 import types
-from typing import Any, Callable, FrozenSet, Tuple, Union, get_args, get_origin
+from typing import Any, Callable, Container, FrozenSet, Tuple, Union, get_args, get_origin
 from collections.abc import Container as ABCContainer, Callable as ABCCallable
 
 def get_return_type(primitive_info):
@@ -17,92 +17,45 @@ def _is_union(type_hint):
 
 def is_compatible(actual_type, expected_type):
     """
-    Vérifie si actual_type peut satisfaire expected_type.
+    Vérifie si actual_type et expected_type ont au moins une valeur possible
+    en commun.
 
     Gère Any, les unions, les types simples et les conteneurs génériques.
     """
     if actual_type is Any or expected_type is Any:
         return True
 
-    # Une annotation FrozenSet sans paramètres accepte tout FrozenSet typé.
-    if expected_type in (FrozenSet, frozenset):
-        return get_origin(actual_type) is frozenset
-
-    # Évite de confondre bool et int, malgré l'héritage Python.
-    if actual_type is bool and expected_type is int:
-        return False
-
     if actual_type == expected_type:
         return True
 
-    # Une fonction DSL connue satisfait une annotation Callable non précisée.
+    # Une union réelle est compatible si au moins une branche l'est.
+    if _is_union(actual_type):
+        return any(
+            is_compatible(option, expected_type)
+            for option in get_args(actual_type)
+        )
+
+    # Une union attendue est compatible si au moins une branche l'est.
+    if _is_union(expected_type):
+        return any(
+            is_compatible(actual_type, option)
+            for option in get_args(expected_type)
+        )
+
+    # Une fonction DSL connue satisfait une annotation Callable.
     from search.function_types import FunctionType
 
     if isinstance(actual_type, FunctionType):
-        if expected_type in (ABCCallable, Callable):
-            return True
+        return expected_type in (ABCCallable, Callable)
 
-    # Chaque branche du type réel doit être acceptée par au moins
-    # une branche du type attendu.
-    if _is_union(actual_type):
-        return all(
-            any(
-                is_compatible(actual_option, expected_option)
-                for expected_option in (
-                    get_args(expected_type)
-                    if _is_union(expected_type)
-                    else (expected_type,)
-                )
-            )
-            for actual_option in get_args(actual_type)
-        )
+    # Ne pas confondre bool et int.
+    if actual_type is bool and expected_type is int:
+        return False
+    if actual_type is int and expected_type is bool:
+        return False
 
-    # Un type réel simple doit correspondre à au moins une branche attendue.
-    if _is_union(expected_type):
-        expected_options = get_args(expected_type)
-
-        # Une correspondance exacte avec une branche suffit.
-        if actual_type in expected_options:
-            return True
-
-        actual_origin = get_origin(actual_type)
-        actual_args = get_args(actual_type)
-
-        # Un tuple variadique d'éléments T peut satisfaire une branche
-        # attendue si T est compatible avec cette branche.
-        if (
-            actual_origin is tuple
-            and len(actual_args) == 2
-            and actual_args[1] is Ellipsis
-        ):
-            element_type = actual_args[0]
-            return any(
-                is_compatible(element_type, option)
-                for option in expected_options
-            )
-
-        return any(
-            is_compatible(actual_type, option)
-            for option in expected_options
-        )
-
-    # Un FrozenSet sans paramètres peut représenter un FrozenSet typé.
-    if actual_type in (FrozenSet, frozenset):
-        expected_origin = get_origin(expected_type)
-        if expected_origin is frozenset:
-            return True
-        expected_args = get_args(expected_type)
-        if expected_args and all(
-            get_origin(member) is frozenset
-            for member in expected_args
-        ):
-            return True
-
-    # Une annotation Tuple sans paramètres accepte tout tuple typé.
-    if expected_type in (Tuple, tuple):
-        return get_origin(actual_type) is tuple or actual_type is tuple
-
-    # Un conteneur concret peut satisfaire une interface Container.
+    # Un conteneur concret non paramétré peut satisfaire une interface
+    # Container générique lorsque son contenu n'est pas connu.
     expected_origin = get_origin(expected_type)
 
     if expected_origin is ABCContainer:
@@ -115,62 +68,96 @@ def is_compatible(actual_type, expected_type):
             return False
 
         expected_args = get_args(expected_type)
+        actual_args = get_args(actual_type)
+
         if not expected_args:
             return True
 
-        actual_args = get_args(actual_type)
+        # Un conteneur non paramétré a un contenu inconnu.
         if not actual_args:
             return True
 
+        # Si le conteneur attendu contient lui-même des conteneurs,
+        # les éléments connus du conteneur réel doivent pouvoir
+        # être des conteneurs.
         return all(
-            is_compatible(actual_arg, expected_arg)
-            for actual_arg, expected_arg in zip(actual_args, expected_args)
+            is_compatible(actual_arg, expected_args[0])
+            for actual_arg in actual_args
         )
+    
+    # Un type concret peut satisfaire une interface abstraite.
+    if expected_type is Container:
+        actual_origin = get_origin(actual_type) or actual_type
+        try:
+            return issubclass(actual_origin, ABCContainer)
+        except TypeError:
+            return False
 
     actual_origin = get_origin(actual_type)
     expected_origin = get_origin(expected_type)
+    actual_args = get_args(actual_type)
+    expected_args = get_args(expected_type)
 
-    # Pour les conteneurs génériques, comparer l'origine et les arguments.
+    # Une annotation FrozenSet non paramétrée accepte tout FrozenSet.
+    if expected_type in (FrozenSet, frozenset):
+        return actual_origin is frozenset or actual_type in (FrozenSet, frozenset)
+
+    if actual_type in (FrozenSet, frozenset):
+        return expected_origin is frozenset or expected_type in (FrozenSet, frozenset)
+
+    # Les tuples non paramétrés acceptent tout tuple.
+    if expected_type in (Tuple, tuple):
+        return actual_origin is tuple or actual_type is tuple
+
+    if actual_type in (Tuple, tuple):
+        return expected_origin is tuple or expected_type in (Tuple, tuple)
+
+    # Conteneurs génériques.
     if actual_origin is not None or expected_origin is not None:
         if actual_origin != expected_origin:
             return False
 
-        actual_args = get_args(actual_type)
-        expected_args = get_args(expected_type)
+        # Tuple[T, ...] : intersection possible des types d'éléments.
+        if actual_origin is tuple and expected_origin is tuple:
+            actual_variadic = (
+                len(actual_args) == 2 and actual_args[1] is Ellipsis
+            )
+            expected_variadic = (
+                len(expected_args) == 2 and expected_args[1] is Ellipsis
+            )
 
-        # Un tuple variadique, Tuple[T, ...], accepte des tuples
-        # dont les éléments sont tous compatibles avec T.
-        if expected_origin is tuple and len(expected_args) == 2 and expected_args[1] is Ellipsis:
-            if actual_origin is not tuple:
-                return False
-
-            if len(actual_args) == 2 and actual_args[1] is Ellipsis:
+            if actual_variadic and expected_variadic:
                 return is_compatible(actual_args[0], expected_args[0])
 
-            return all(
-                is_compatible(arg, expected_args[0])
-                for arg in actual_args
-            )
+            if actual_variadic:
+                return all(
+                    is_compatible(actual_args[0], expected_arg)
+                    for expected_arg in expected_args
+                    if expected_arg is not Ellipsis
+                )
 
-        # Un tuple variadique réel peut satisfaire un tuple attendu
-        # si son type d'élément convient à chaque position attendue.
-        if actual_origin is tuple and len(actual_args) == 2 and actual_args[1] is Ellipsis:
-            if expected_origin is not tuple:
+            if expected_variadic:
+                return all(
+                    is_compatible(actual_arg, expected_args[0])
+                    for actual_arg in actual_args
+                    if actual_arg is not Ellipsis
+                )
+
+            if len(actual_args) != len(expected_args):
                 return False
 
             return all(
-                is_compatible(actual_args[0], expected_arg)
-                for expected_arg in expected_args
-                if expected_arg is not Ellipsis
+                is_compatible(actual_arg, expected_arg)
+                for actual_arg, expected_arg in zip(actual_args, expected_args)
             )
 
-        if len(actual_args) != len(expected_args):
-            return False
+        if not actual_args or not expected_args:
+            return True
 
-        return all(
+        return any(
             is_compatible(actual_arg, expected_arg)
-            and is_compatible(expected_arg, actual_arg)
-            for actual_arg, expected_arg in zip(actual_args, expected_args)
+            for actual_arg in actual_args
+            for expected_arg in expected_args
         )
 
     try:
