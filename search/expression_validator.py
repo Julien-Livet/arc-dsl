@@ -46,14 +46,40 @@ def _infer_partial_binding(
     registry,
 ):
     """Infère le type d'une fonction produite par lbind ou rbind."""
-    if not isinstance(function_expression, PrimitiveRefExpr):
-        return None
-
     if not isinstance(fixed_expression, (PrimitiveRefExpr, PrimitiveExpr)):
         return None
 
-    target_name = function_expression.name
     fixed_type = infer_expression_type(fixed_expression, registry)
+
+    # Une fonction déjà partiellement appliquée peut elle-même
+    # être passée à rbind ou lbind. On conserve sa signature inférée.
+    if isinstance(function_expression, PrimitiveExpr):
+        if not isinstance(fixed_type, FunctionType):
+            return None
+
+        if function_expression.name == "lbind":
+            inner_function = function_expression.arguments[0]
+
+            if (
+                isinstance(inner_function, PrimitiveRefExpr)
+                and inner_function.name == "chain"
+                and isinstance(function_expression.arguments[1], (PrimitiveRefExpr, PrimitiveExpr))
+            ):
+                inner_type = infer_expression_type(
+                    function_expression,
+                    registry,
+                )
+
+                if isinstance(inner_type, FunctionType):
+                    return FunctionType(
+                        parameter_types=inner_type.parameter_types[:-1],
+                        return_type=inner_type.return_type,
+                        variadic=inner_type.variadic,
+                    )
+
+        return None
+
+    target_name = function_expression.name
 
     if not isinstance(fixed_type, FunctionType):
         return None
@@ -69,12 +95,25 @@ def _infer_partial_binding(
             ),
         )
 
-    # lbind(rbind, f):
-    # reçoit fixed et retourne f avec son dernier paramètre fixé.
-    if target_name == "rbind" and binding_name == "lbind":
-        if fixed_type.variadic or fixed_type.arity < 1:
+    # lbind(lbind, f) :
+    # reçoit le premier argument de f, puis retourne la fonction
+    # f partiellement appliquée à cet argument.
+    if target_name == "lbind" and binding_name == "lbind":
+        if fixed_type.variadic or fixed_type.arity < 2:
             return None
 
+        return FunctionType(
+            parameter_types=(fixed_type.parameter_types[0],),
+            return_type=FunctionType(
+                parameter_types=fixed_type.parameter_types[1:],
+                return_type=fixed_type.return_type,
+                variadic=fixed_type.variadic,
+            ),
+        )
+
+    # lbind(rbind, f) : retourne une fonction qui fixe le dernier
+    # argument de rbind, puis retourne la signature spécialisée de f.
+    if target_name == "rbind" and binding_name == "lbind":
         return FunctionType(
             parameter_types=(Any,),
             return_type=FunctionType(
@@ -84,12 +123,9 @@ def _infer_partial_binding(
             ),
         )
 
-    # rbind(lbind, f):
-    # reçoit fixed et retourne f avec son premier paramètre fixé.
+    # rbind(lbind, f) : retourne une fonction qui fixe le premier
+    # argument de lbind, puis retourne la signature spécialisée de f.
     if target_name == "lbind" and binding_name == "rbind":
-        if fixed_type.variadic or fixed_type.arity < 1:
-            return None
-
         return FunctionType(
             parameter_types=(Any,),
             return_type=FunctionType(
@@ -99,7 +135,36 @@ def _infer_partial_binding(
             ),
         )
 
+    # rbind(lbind(chain, f), g) :
+    # fixe le dernier argument de chain après avoir fixé le premier.
+    if (
+        binding_name == "rbind"
+        and isinstance(function_expression, PrimitiveExpr)
+        and function_expression.name == "lbind"
+        and isinstance(function_expression.arguments[0], PrimitiveRefExpr)
+        and function_expression.arguments[0].name == "chain"
+    ):
+        inner_function = function_expression.arguments[0]
+        inner_fixed_expression = function_expression.arguments[1]
+
+        inner_type = infer_expression_type(inner_function, registry)
+        inner_fixed_type = infer_expression_type(
+            inner_fixed_expression, registry
+        )
+
+        if (
+            isinstance(inner_type, FunctionType)
+            and isinstance(inner_fixed_type, FunctionType)
+            and isinstance(fixed_type, FunctionType)
+        ):
+            return FunctionType(
+                parameter_types=(Callable,),
+                return_type=inner_type.return_type,
+                variadic=False,
+            )
+
     return None
+
 
 def specialize_size(argument_types, function_expr, fixed_type=None):
     """Infère le type de retour de size."""
@@ -311,6 +376,9 @@ def infer_expression_type(expression, registry):
                         if len(element_types) == 1
                         else Union[tuple(element_types)]
                     )
+
+            if container_type in (FrozenSet, frozenset):
+                return Any
 
             container_args = get_args(container_type)
 
@@ -713,14 +781,14 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
             arguments[1],
             registry,
         )
+
         if specialized is not None:
             return specialized
 
+        function_expression = arguments[0]
         function_type, _ = actual_types
         fixed_type = actual_types[1]
         result = infer_lbind(function_type, fixed_type)
-
-        function_expression = arguments[0]
 
         if (
             isinstance(function_expression, PrimitiveRefExpr)
@@ -766,14 +834,14 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
             arguments[1],
             registry,
         )
+
         if specialized is not None:
             return specialized
 
+        function_expression = arguments[0]
         function_type, _ = actual_types
         fixed_type = actual_types[1]
         result = infer_rbind(function_type, fixed_type)
-
-        function_expression = arguments[0]
 
         if (
             isinstance(function_expression, PrimitiveRefExpr)
