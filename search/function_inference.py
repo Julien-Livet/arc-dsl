@@ -1,8 +1,8 @@
 from search.function_types import FunctionType
 from search.type_system import is_compatible, _is_union
-from typing import get_args, Union, Callable
+from typing import get_args, Union, Callable, Container, Any
 from arc_types import Boolean
-from collections.abc import Callable as ABCCallable
+from collections.abc import Callable as ABCCallable, Container as ABCContainer
 
 
 def infer_compose(outer, inner):
@@ -213,23 +213,9 @@ def infer_lbind(function, fixed_type):
         raise TypeError(
             "lbind ne peut pas inférer cette arité conformément au DSL."
         )
-    #print("LBIND primitive name :", getattr(function, "name", None))
-    #print("LBIND fixed_type :", repr(fixed_type))
-    #print("LBIND expected_type :", repr(function.parameter_types[0]))
-    #print("LBIND arity :", function.arity)
-    #print("LBIND parameters :", repr(function.parameter_types))
-    #print("LBIND return :", repr(function.return_type))
-    #print("LBIND fixed :", repr(fixed_type))
+
     expected_type = function.parameter_types[0]
-    #print("LBIND function :", repr(function))
-    #print("LBIND fixed_type :", repr(fixed_type))
-    #print("LBIND expected_type :", repr(function.parameter_types[0]))
-    #print("LBIND fixed -> expected :", is_compatible(
-    #    fixed_type, function.parameter_types[0]
-    #))
-    #print("LBIND expected -> fixed :", is_compatible(
-    #    function.parameter_types[0], fixed_type
-    #))
+
     if (
         not is_compatible(fixed_type, expected_type)
         and not is_compatible(expected_type, fixed_type)
@@ -394,6 +380,12 @@ def infer_mapply(function, container_type):
                     "Tuple hétérogène non pris en charge par mapply : "
                     f"{candidate!r}"
                 )
+
+        elif candidate in (Container, ABCContainer):
+            container_types.append(FrozenSet[Any])
+
+        elif candidate is Any:
+            container_types.append(FrozenSet[Any])
 
         else:
             raise TypeError(
