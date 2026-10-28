@@ -227,13 +227,6 @@ def infer_lbind(function, fixed_type):
 
     return_type = function.return_type
 
-    if getattr(function, "name", None) in {"argmax", "argmin"}:
-        container_type = function.parameter_types[0]
-        container_args = get_args(container_type)
-
-        if container_args:
-            return_type = container_args[0]
-
     return FunctionType(
         parameter_types=function.parameter_types[1:],
         return_type=return_type,
@@ -272,13 +265,6 @@ def infer_rbind(function, fixed_type):
         )
 
     return_type = function.return_type
-
-    if getattr(function, "name", None) in {"argmax", "argmin"}:
-        container_type = function.parameter_types[0]
-        container_args = get_args(container_type)
-
-        if container_args:
-            return_type = container_args[0]
 
     return FunctionType(
         parameter_types=function.parameter_types[:-1],
@@ -350,6 +336,9 @@ def infer_mapply(function, container_type):
     from typing import FrozenSet, get_args, get_origin
 
     if not isinstance(function, FunctionType):
+        if function is Callable:
+            return FrozenSet[Any]
+
         raise TypeError("function doit avoir une signature connue.")
 
     if function.arity != 1:
