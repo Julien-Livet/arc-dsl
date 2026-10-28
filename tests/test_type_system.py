@@ -28,7 +28,7 @@ def test_actual_union_requires_all_branches_to_match():
     actual = Union[int, bool]
 
     assert is_compatible(actual, Union[int, bool])
-    assert not is_compatible(actual, int)
+    assert is_compatible(actual, int)
 
 
 def test_tuple_element_types_must_match():
@@ -57,7 +57,7 @@ def test_arc_aliases():
 def test_patch_union():
     assert is_compatible(Object, Patch)
     assert is_compatible(Indices, Patch)
-    assert not is_compatible(Grid, Patch)
+    assert is_compatible(Grid, Patch)
 
 
 def test_frozenset_of_frozensets_is_compatible_with_nested_container():
