@@ -48,7 +48,7 @@ def multiply(
     elif isinstance(a, int) and isinstance(b, tuple):
         return (a * b[0], a * b[1])
     return (a[0] * b, a[1] * b)
-    
+
 
 def divide(
     a: Numerical,
@@ -79,14 +79,14 @@ def even(
 
 
 def double(
-    n: Numerical
+    n: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ scaling by two """
     return n * 2 if isinstance(n, int) else (n[0] * 2, n[1] * 2)
 
 
 def halve(
-    n: Numerical
+    n: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ scaling by one half """
     return n // 2 if isinstance(n, int) else (n[0] // 2, n[1] // 2)
@@ -185,14 +185,14 @@ def merge(
 
 
 def maximum(
-    container: IntegerSet
+    container: Union[IntegerSet, Tuple[Integer, ...]]
 ) -> Integer:
     """ maximum """
     return max(container, default=0)
 
 
 def minimum(
-    container: IntegerSet
+    container: Union[IntegerSet, Tuple[Integer, ...]]
 ) -> Integer:
     """ minimum """
     return min(container, default=0)
@@ -268,21 +268,21 @@ def either(
 
 
 def increment(
-    x: Numerical
+    x: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ incrementing """
     return x + 1 if isinstance(x, int) else (x[0] + 1, x[1] + 1)
 
 
 def decrement(
-    x: Numerical
+    x: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ decrementing """
     return x - 1 if isinstance(x, int) else (x[0] - 1, x[1] - 1)
 
 
 def crement(
-    x: Numerical
+    x: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ incrementing positive and decrementing negative """
     if isinstance(x, int):
@@ -399,7 +399,7 @@ def interval(
     start: Integer,
     stop: Integer,
     step: Integer
-) -> Tuple:
+) -> Tuple[Integer, ...]:
     """ range """
     return tuple(range(start, stop, step))
 
@@ -527,7 +527,7 @@ def rapply(
 
 def mapply(
     function: Callable,
-    container: ContainerContainer
+    container: Container
 ) -> FrozenSet:
     """ apply and merge """
     return merge(apply(function, container))
