@@ -21,7 +21,8 @@ def hodelTasks() -> list[str]:
 
     return tasks
 
-def loadFolder(folder: str) -> dict:    
+
+def loadFolder(folder: str) -> dict[str, str]:    
     with open(f"../../ARC-AGI-2/data/{folder}.txt", "r") as f:
         taskIds = f.read().split("\n")
     
@@ -58,16 +59,15 @@ def test_grids() -> None:
             assert(O == f(I))
 
 
-def test_types():
+def test_types() -> None:
     registry = load_registry()
     errors = []
     tasks = hodelTasks()
-    ignoredTasks: set = {"72322fa7", "6aa20dc0", "447fd412", "36d67576", "0e206a2e",
-                         "b527c5c6", "a64e4611", "97a05b5b", }
+    ignoredTasks: set = {"a64e4611", }
     count: int = 0
 
     for i, task in enumerate(tasks): #TODO: remove enumerate
-        #task = "3e980e27"
+        #task = "a64e4611"
         #"""
         if (task in ignoredTasks):
             print(f"{task} task ignored")
