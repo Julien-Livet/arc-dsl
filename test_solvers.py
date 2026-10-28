@@ -64,16 +64,18 @@ def test_types():
 
     tasks = hodelTasks()
 
-    commentedTasks: set = {"e8dc4411", "29623171", "a2fd1cf0", "8d510a79", "a48eeaf7", "995c5fa3", "72322fa7", "6d58a25d", "6aa20dc0", "447fd412", "36d67576", "28e73c20", "6a1e5592", "0e206a2e", "d22278a0", "b527c5c6", "9d9215db", "f15e1fac", "234bbc79", "a64e4611", "a8c38be5", "b775ac94", "97a05b5b", "3e980e27", }
-    #commentedTasks.remove("e8dc4411")
+    commentedTasks: set = {"72322fa7", "6aa20dc0", "447fd412", "36d67576", "0e206a2e", "d22278a0",
+                           "b527c5c6", "f15e1fac", "a64e4611", "b775ac94", "97a05b5b", "3e980e27", }
     count: int = 0
 
     for i, task in enumerate(tasks): #TODO: remove enumerate
+        #task = "e8dc4411"
+        #"""
         if (task in commentedTasks):
             print(f"{task} task ignored")
 
             continue
-
+        #"""
         solver = getattr(solvers, f"solve_{task}")
 
         if not callable(solver):
