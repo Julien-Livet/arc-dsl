@@ -358,7 +358,10 @@ def infer_mapply(function, container_type):
         origin = get_origin(candidate)
         args = get_args(candidate)
 
-        if origin is frozenset and args:
+        if candidate is FrozenSet:
+            container_types.append(FrozenSet[Any])
+
+        elif origin is frozenset and args:
             container_types.append(FrozenSet[args[0]])
 
         elif origin is tuple and args:
