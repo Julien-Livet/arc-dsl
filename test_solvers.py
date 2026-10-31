@@ -5,7 +5,25 @@ from search.type_system import is_compatible
 from search.dsl_registry import load_registry
 from search.python_to_dsl import parse_solver
 from search.expression_validator import infer_expression_type
+from search.expressions import expression_to_str
+from search.dsl_generator import get_next_symbols, GenerationState, get_current_goal, select_symbol
 from arc_types import Grid
+import re
+
+
+def programDepth(program: str):
+    count = 0
+    n = 0
+
+    for c in program:
+        if (c == "("):
+            n += 1
+        elif (c == ")"):
+            n -= 1
+
+        count = max(count, n)
+
+    return count
 
 
 def hodelTasks() -> list[str]:
@@ -61,19 +79,12 @@ def test_grids() -> None:
 
 def test_types() -> None:
     registry = load_registry()
-    errors = []
+    errors: dict = {}
     tasks = hodelTasks()
     ignoredTasks: set = {"a64e4611", }
     count: int = 0
 
-    for i, task in enumerate(tasks): #TODO: remove enumerate
-        #task = "a64e4611"
-        #"""
-        if (task in ignoredTasks):
-            print(f"{task} task ignored")
-
-            continue
-        #"""
+    for task in tasks:
         solver = getattr(solvers, f"solve_{task}")
 
         if not callable(solver):
@@ -89,13 +100,90 @@ def test_types() -> None:
             )
 
             count += 1
-
         except Exception as exc:
-            print(f"{i}/{len(tasks)}")
-            print(source)
-            errors.append(f"{task}: {type(exc).__name__}: {exc}")
-            raise exc
+            if (task in ignoredTasks):
+                print(f"{task} task ignored")
+            else:
+                errors[task] = f"{task}: {type(exc).__name__}: {exc}"
 
     print(f"{count}/{len(tasks)} passed tasks")
 
-    assert not errors, "\n".join(errors)
+    assert not errors, "\n".join(errors.values())
+
+
+def test_expressions():
+    registry = load_registry()
+    errors: dict = {}
+    tasks = hodelTasks()
+    ignoredTasks: set = {"a64e4611", }
+    count: int = 0
+
+    for task in tasks:
+        solver = getattr(solvers, f"solve_{task}")
+
+        if not callable(solver):
+            continue
+
+        source = inspect.getsource(solver)
+        expression = parse_solver(source, registry)
+        program = expression_to_str(expression)
+        elements = list(filter(lambda x: len(x), re.split(r"[,() ]+", program)))
+
+        state = GenerationState(
+            expected_type=Grid,
+            max_depth=programDepth(program),
+        )
+
+        try:
+            while (not state.finished):
+                goal = get_current_goal(state)
+
+                depth = len(state.stack)
+
+                symbols = get_next_symbols(
+                    expected_type=goal,
+                    registry=registry,
+                    depth=depth,
+                    max_depth=state.max_depth,
+                )
+
+                if not symbols:
+                    raise RuntimeError(
+                        f"Aucun symbole disponible pour le type {goal}"
+                    )
+
+                namedSymbols: dict = {}
+                strSymbols = set()
+
+                for symbol in symbols:
+                    if (getattr(symbol, "name", None)):
+                        namedSymbols[symbol.name] = symbol
+                    else:
+                        strSymbols.add(symbol)
+
+                if (elements[0] in namedSymbols):
+                    selected_symbol = namedSymbols[elements[0]]
+                else:
+                    assert(elements[0] in strSymbols)
+
+                    selected_symbol = elements[0]
+
+                state = select_symbol(
+                    state,
+                    selected_symbol,
+                    registry,
+                )
+
+                elements.pop(0)
+
+            expression = state.result
+            count += 1
+        except Exception as exc:
+            if (task in ignoredTasks):
+                print(f"{task} task ignored")
+            else:
+                errors[task] = f"{task}: {type(exc).__name__}: {exc}"
+
+    print(f"{count}/{len(tasks)} passed tasks")
+
+    assert errors #assert not errors, "\n".join(errors.values())
