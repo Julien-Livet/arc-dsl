@@ -54,6 +54,18 @@ def is_compatible(actual_type, expected_type):
     if actual_type is int and expected_type is bool:
         return False
 
+    if actual_type in (Container, ABCContainer):
+        expected_origin = get_origin(expected_type) or expected_type
+
+        # Les tuples et frozensets sont des conteneurs.
+        if expected_origin in (tuple, frozenset):
+            return True
+
+        try:
+            return issubclass(expected_origin, ABCContainer)
+        except TypeError:
+            return False
+
     # Un conteneur concret non paramétré peut satisfaire une interface
     # Container générique lorsque son contenu n'est pas connu.
     expected_origin = get_origin(expected_type)
@@ -84,14 +96,6 @@ def is_compatible(actual_type, expected_type):
             is_compatible(actual_arg, expected_args[0])
             for actual_arg in actual_args
         )
-    
-    # Un type concret peut satisfaire une interface abstraite.
-    if expected_type is Container:
-        actual_origin = get_origin(actual_type) or actual_type
-        try:
-            return issubclass(actual_origin, ABCContainer)
-        except TypeError:
-            return False
 
     actual_origin = get_origin(actual_type)
     expected_origin = get_origin(expected_type)
