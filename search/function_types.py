@@ -29,10 +29,33 @@ class FunctionType:
         """
         Vérifie si cette signature peut satisfaire une signature attendue.
 
-        La compatibilité est volontairement prudente : les arguments doivent
-        être compatibles dans les deux sens, et le résultat doit satisfaire
-        le type de retour attendu.
+        La compatibilité est volontairement prudente pour les FunctionType :
+        les arguments doivent être compatibles dans les deux sens, et le
+        résultat doit satisfaire le type de retour attendu.
         """
+        from typing import Callable, get_origin
+        from collections.abc import Callable as ABCCallable
+
+        # Callable non paramétré : aucune contrainte sur la signature.
+        if expected in (Callable, ABCCallable):
+            return True
+
+        # Callable paramétré : à traiter comme une signature attendue.
+        if get_origin(expected) in (Callable, ABCCallable):
+            args = expected.__args__
+
+            # Callable[..., R] : arité et types des paramètres libres.
+            if args[0] is Ellipsis:
+                return is_compatible(self.return_type, args[1])
+
+            # Callable[[T1, T2, ...], R]
+            parameter_types, return_type = args
+            expected_function = FunctionType(
+                parameter_types=tuple(parameter_types),
+                return_type=return_type,
+            )
+            return self.is_compatible_with(expected_function)
+
         if not isinstance(expected, FunctionType):
             return False
 
