@@ -616,7 +616,7 @@ def infer_expression_type(expression, registry):
                     )
                 continue
 
-            if not is_compatible(actual_type, expected_type) and not is_compatible(expected_type, actual_type):
+            if not is_compatible(actual_type, expected_type):
                 raise TypeError(
                     f"Argument {parameter['name']} de {expression.name} : "
                     f"type attendu {expected_type}, reçu {actual_type}"
@@ -659,10 +659,7 @@ def infer_expression_type(expression, registry):
         for index, (actual_type, expected_type) in enumerate(
             zip(argument_types, function_type.parameter_types)
         ):
-            if (
-                not is_compatible(actual_type, expected_type)
-                and not is_compatible(expected_type, actual_type)
-            ):
+            if not is_compatible(actual_type, expected_type):
                 raise TypeError(
                     f"Type incompatible pour l'argument {index + 1} : "
                     f"attendu {expected_type!r}, reçu {actual_type!r}."
