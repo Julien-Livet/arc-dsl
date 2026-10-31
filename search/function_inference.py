@@ -26,7 +26,7 @@ def infer_compose(outer, inner):
     inner_result = inner.return_type
     outer_argument = outer.parameter_types[0]
 
-    if not is_compatible(inner_result, outer_argument) and not is_compatible(outer_argument, inner_result):
+    if not is_compatible(inner_result, outer_argument):
         raise TypeError(
             "Types incompatibles dans compose : "
             f"inner retourne {inner_result}, "
@@ -84,7 +84,7 @@ def infer_fork(outer, a, b):
             "Les fonctions a et b ont des types d'entrée incompatibles."
         )
 
-    if not is_compatible(a.return_type, outer.parameter_types[0]) and not is_compatible(outer.parameter_types[0], a.return_type):
+    if not is_compatible(a.return_type, outer.parameter_types[0]):
         raise TypeError(
             "Le résultat de a est incompatible avec le premier argument "
             "de outer."
@@ -95,10 +95,7 @@ def infer_fork(outer, a, b):
     else:
         second_argument_type = b.return_type
 
-    if (
-        not is_compatible(second_argument_type, outer.parameter_types[1])
-        and not is_compatible(outer.parameter_types[1], second_argument_type)
-    ):
+    if not is_compatible(second_argument_type, outer.parameter_types[1]):
         raise TypeError(
             "Le résultat de b est incompatible avec le second argument "
             "de outer."
@@ -175,15 +172,12 @@ def infer_chain(h, g, f):
             raise TypeError(
                 "L'argument de g doit être une fonction connue."
             )
-    elif (
-        not is_compatible(f.return_type, g.parameter_types[0])
-        and not is_compatible(g.parameter_types[0], f.return_type)
-    ):
+    elif not is_compatible(f.return_type, g.parameter_types[0]):
         raise TypeError(
             "Le résultat de f est incompatible avec l'argument de g."
         )
 
-    if not is_compatible(g.return_type, h.parameter_types[0]) and not is_compatible(h.parameter_types[0], g.return_type):
+    if not is_compatible(g.return_type, h.parameter_types[0]):
         raise TypeError(
             "Le résultat de g est incompatible avec l'argument de h."
         )
@@ -202,34 +196,22 @@ def infer_lbind(function, fixed_type):
     if function.variadic:
         raise TypeError("lbind ne prend pas en charge une arité inconnue.")
 
-    if function.arity == 2:
-        expected_fixed_arity = 1
-    elif function.arity == 3:
-        expected_fixed_arity = 2
-    else:
-        expected_fixed_arity = 3
-
-    if function.arity != expected_fixed_arity + 1:
+    if function.arity not in (2, 3, 4):
         raise TypeError(
-            "lbind ne peut pas inférer cette arité conformément au DSL."
+            "lbind ne prend pas en charge cette arité conformément au DSL."
         )
 
     expected_type = function.parameter_types[0]
 
-    if (
-        not is_compatible(fixed_type, expected_type)
-        and not is_compatible(expected_type, fixed_type)
-    ):
+    if not is_compatible(fixed_type, expected_type):
         raise TypeError(
             "Le type de l'argument fixé est incompatible avec "
             "le premier paramètre de function."
         )
 
-    return_type = function.return_type
-
     return FunctionType(
         parameter_types=function.parameter_types[1:],
-        return_type=return_type,
+        return_type=function.return_type,
     )
 
 
@@ -241,34 +223,22 @@ def infer_rbind(function, fixed_type):
     if function.variadic:
         raise TypeError("rbind ne prend pas en charge une arité inconnue.")
 
-    if function.arity == 2:
-        expected_fixed_arity = 1
-    elif function.arity == 3:
-        expected_fixed_arity = 2
-    else:
-        expected_fixed_arity = 3
-
-    if function.arity != expected_fixed_arity + 1:
+    if function.arity not in (2, 3, 4):
         raise TypeError(
-            "rbind ne peut pas inférer cette arité conformément au DSL."
+            "rbind ne prend pas en charge cette arité conformément au DSL."
         )
 
     expected_type = function.parameter_types[-1]
 
-    if (
-        not is_compatible(fixed_type, expected_type)
-        and not is_compatible(expected_type, fixed_type)
-    ):
+    if not is_compatible(fixed_type, expected_type):
         raise TypeError(
             "Le type de l'argument fixé est incompatible avec "
             "le dernier paramètre de function."
         )
 
-    return_type = function.return_type
-
     return FunctionType(
         parameter_types=function.parameter_types[:-1],
-        return_type=return_type,
+        return_type=function.return_type,
     )
 
 
