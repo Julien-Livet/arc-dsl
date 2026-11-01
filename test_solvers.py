@@ -11,9 +11,9 @@ from arc_types import Grid
 import re
 
 
-def programDepth(program: str):
-    count = 0
-    n = 0
+def programDepth(program: str) -> int:
+    count: int = 0
+    n: int = 0
 
     for c in program:
         if (c == "("):
@@ -111,7 +111,7 @@ def test_types() -> None:
     assert not errors, "\n".join(errors.values())
 
 
-def test_expressions():
+def test_expressions() -> None:
     registry = load_registry()
     errors: dict = {}
     tasks = hodelTasks()
