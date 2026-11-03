@@ -1020,3 +1020,30 @@ def create_pending_application(function_expression, function_type):
         return_type=function_type.return_type,
         depth=0,
     )
+
+
+def walk_expression(expression):
+    """Parcourt une expression en ordre préfixe."""
+
+    yield expression
+
+    if isinstance(expression, PrimitiveExpr):
+        for argument in expression.arguments:
+            yield from walk_expression(argument)
+
+    elif isinstance(expression, ApplyExpr):
+        yield from walk_expression(expression.function)
+
+        for argument in expression.arguments:
+            yield from walk_expression(argument)
+
+
+def get_expression_node(expression, index):
+    if index < 0:
+        raise IndexError(index)
+
+    for i, node in enumerate(walk_expression(expression)):
+        if i == index:
+            return node
+
+    raise IndexError(index)
