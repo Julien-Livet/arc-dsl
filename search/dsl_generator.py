@@ -63,20 +63,6 @@ class TypeGoal:
     argument_index: int | None = None
 
 
-def _get_return_type(primitive_info):
-    """Retourne le type de retour déclaré d'une primitive."""
-    hints = primitive_info.get("type_hints", {})
-    return hints.get("return", Any)
-
-
-def _is_usable_return_type(return_type):
-    """Évite les types de retour trop génériques lors de l'énumération."""
-    if return_type in (Any, object):
-        return False
-
-    return True
-
-
 def enumerate_candidates(expected_type, registry):
     """
     Énumère les symboles dont le type de retour est potentiellement
@@ -529,18 +515,6 @@ def get_next_argument_goal(pending):
     return None
 
 
-def get_next_argument_goal(pending):
-    """Retourne le type attendu pour le prochain argument."""
-    for argument, expected_type in zip(
-        pending.arguments,
-        pending.parameter_types,
-    ):
-        if argument is None:
-            return expected_type
-
-    return None
-
-
 def may_return_type(declared_type, expected_type):
     """Indique si le type déclaré peut correspondre au type attendu."""
 
@@ -575,7 +549,7 @@ def get_compatible_primitives(expected_type, registry):
     for name, primitive_info in registry["primitives"].items():
 
         if name in FUNCTION_COMBINATORS:
-            if name in {"branch", "mapply"}:
+            if name in {"branch", "mapply", "lbind", "rbind"}:
                 declared_return = get_return_type(primitive_info)
 
                 if may_return_type(declared_return, expected_type):
@@ -636,10 +610,7 @@ def get_candidates(expected_type, registry):
 def validate_expression(expression, expected_type, registry):
     actual_type = infer_expression_type(expression, registry)
 
-    if not is_compatible(actual_type, expected_type):
-        return False
-
-    return True
+    return is_compatible(actual_type, expected_type)
 
 
 def generate_expression(
@@ -756,9 +727,8 @@ def generate_function_reference(expected_type, registry):
             return_type=get_return_type(primitive_info),
         )
 
-        if isinstance(expected_type, FunctionType):
-            if actual_type.is_compatible_with(expected_type):
-                candidates.append(PrimitiveRefExpr(name=name))
+        if isinstance(expected_type, FunctionType) and actual_type.is_compatible_with(expected_type):
+            candidates.append(PrimitiveRefExpr(name=name))
 
     if not candidates:
         return None
