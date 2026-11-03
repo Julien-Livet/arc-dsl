@@ -5,10 +5,9 @@ from search.type_system import is_compatible
 from search.dsl_registry import load_registry
 from search.python_to_dsl import parse_solver
 from search.expression_validator import infer_expression_type
-from search.expressions import expression_to_str
-from search.dsl_generator import get_next_symbols, GenerationState, get_current_goal, select_symbol
+from search.expressions import expression_to_str, PrimitiveRefExpr
+from search.dsl_generator import get_next_symbols, GenerationState, get_current_goal, select_symbol, get_expression_node
 from arc_types import Grid
-import re
 
 
 def programDepth(program: str) -> int:
@@ -127,12 +126,9 @@ def test_expressions() -> None:
         source = inspect.getsource(solver)
         expression = parse_solver(source, registry)
         program = expression_to_str(expression)
-        elements = list(filter(lambda x: len(x), re.split(r"[,() ]+", program)))
+        elementIndex: int = 0
 
-        state = GenerationState(
-            expected_type=Grid,
-            max_depth=programDepth(program),
-        )
+        state = GenerationState(expected_type=Grid, max_depth=programDepth(program))
 
         try:
             while (not state.finished):
@@ -162,15 +158,34 @@ def test_expressions() -> None:
                     for symbol in symbols
                     if getattr(symbol, "name", None)
                 }
+                
+                node = get_expression_node(expression, elementIndex)
 
-                if elements[0] in primitiveSymbols:
-                    selected_symbol = elements[0]
-                elif elements[0] in namedSymbols:
-                    selected_symbol = namedSymbols[elements[0]]
+                try:
+                    element = node.name
+                except AttributeError:
+                    elementIndex += 1
+
+                    continue
+
+                if type(node) is PrimitiveRefExpr:
+                    if element in namedSymbols:
+                        selected_symbol = namedSymbols[element]
+                    elif element in primitiveSymbols:
+                        selected_symbol = element
+                    else:
+                        raise AssertionError(
+                            f"Symbole {element} absent des candidats : {symbols}"
+                        )
                 else:
-                    raise AssertionError(
-                        f"Symbole {elements[0]} absent des candidats : {symbols}"
-                    )
+                    if element in primitiveSymbols:
+                        selected_symbol = element
+                    elif element in namedSymbols:
+                        selected_symbol = namedSymbols[element]
+                    else:
+                        raise AssertionError(
+                            f"Symbole {element} absent des candidats : {symbols}"
+                        )
 
                 state = select_symbol(
                     state,
@@ -178,7 +193,7 @@ def test_expressions() -> None:
                     registry,
                 )
 
-                elements.pop(0)
+                elementIndex += 1
 
             expression = state.result
             count += 1
