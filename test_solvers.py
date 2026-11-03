@@ -152,21 +152,25 @@ def test_expressions() -> None:
                         f"Aucun symbole disponible pour le type {goal}"
                     )
 
-                namedSymbols: dict = {}
-                strSymbols = set()
+                primitiveSymbols = {
+                    symbol for symbol in symbols
+                    if isinstance(symbol, str)
+                }
 
-                for symbol in symbols:
-                    if (getattr(symbol, "name", None)):
-                        namedSymbols[symbol.name] = symbol
-                    else:
-                        strSymbols.add(symbol)
+                namedSymbols = {
+                    symbol.name: symbol
+                    for symbol in symbols
+                    if getattr(symbol, "name", None)
+                }
 
-                if (elements[0] in namedSymbols):
+                if elements[0] in primitiveSymbols:
+                    selected_symbol = elements[0]
+                elif elements[0] in namedSymbols:
                     selected_symbol = namedSymbols[elements[0]]
                 else:
-                    assert(elements[0] in strSymbols)
-
-                    selected_symbol = elements[0]
+                    raise AssertionError(
+                        f"Symbole {elements[0]} absent des candidats : {symbols}"
+                    )
 
                 state = select_symbol(
                     state,
