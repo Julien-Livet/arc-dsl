@@ -548,15 +548,6 @@ def get_compatible_primitives(expected_type, registry):
 
     for name, primitive_info in registry["primitives"].items():
 
-        if name in FUNCTION_COMBINATORS:
-            if name in {"branch", "mapply", "lbind", "rbind", "fork", "compose", "chain", "mfilter", "matcher", "power"}:
-                declared_return = get_return_type(primitive_info)
-
-                if may_return_type(declared_return, expected_type):
-                    candidates.append(name)
-
-            continue
-
         declared_return = get_return_type(primitive_info)
 
         if may_return_type(declared_return, expected_type):
