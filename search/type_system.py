@@ -126,6 +126,42 @@ def is_compatible(actual_type, expected_type):
     if actual_type in (Tuple, tuple):
         return expected_origin in (tuple, frozenset, FrozenSet) or expected_type in (Tuple, tuple)
 
+    # Compatibilité entre différents types de conteneurs.
+    container_origins = (tuple, frozenset)
+
+    if actual_origin in container_origins and expected_origin in container_origins:
+        actual_args = get_args(actual_type)
+        expected_args = get_args(expected_type)
+
+        if not actual_args or not expected_args:
+            return True
+
+        # Tuple[T, ...] et FrozenSet[T] sont des collections
+        # dont les éléments doivent être compatibles.
+        actual_element_types = (
+            (actual_args[0],)
+            if actual_origin is tuple
+            and len(actual_args) == 2
+            and actual_args[1] is Ellipsis
+            else actual_args
+        )
+
+        expected_element_types = (
+            (expected_args[0],)
+            if expected_origin is tuple
+            and len(expected_args) == 2
+            and expected_args[1] is Ellipsis
+            else expected_args
+        )
+
+        return all(
+            any(
+                is_compatible(actual_element, expected_element)
+                for expected_element in expected_element_types
+            )
+            for actual_element in actual_element_types
+        )
+
     # Conteneurs génériques.
     if actual_origin is not None or expected_origin is not None:
         if actual_origin != expected_origin:
