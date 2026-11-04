@@ -9,8 +9,8 @@ def identity(
 
 
 def add(
-    a: Union[Numerical, Boolean, Tuple[int, ...]],
-    b: Union[Numerical, Boolean, Tuple[int, ...]]
+    a: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]],
+    b: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]]
 ) -> Numerical:
     """ addition """
     if isinstance(a, int) and isinstance(b, int):
@@ -23,8 +23,8 @@ def add(
 
 
 def subtract(
-    a: Union[Numerical, Boolean, Tuple[int, ...]],
-    b: Union[Numerical, Boolean, Tuple[int, ...]]
+    a: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]],
+    b: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]]
 ) -> Numerical:
     """ subtraction """
     if isinstance(a, int) and isinstance(b, int):
@@ -37,8 +37,8 @@ def subtract(
 
 
 def multiply(
-    a: Union[Numerical, Boolean, Tuple[int, ...]],
-    b: Union[Numerical, Boolean, Tuple[int, ...]]
+    a: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]],
+    b: Union[Numerical, Boolean, Tuple[Integer, ...], Tuple[Boolean, ...]]
 ) -> Numerical:
     """ multiplication """
     if isinstance(a, int) and isinstance(b, int):
@@ -65,7 +65,7 @@ def divide(
 
 
 def invert(
-    n: Union[Numerical, Boolean, Tuple[int, ...]]
+    n: Union[Numerical, Boolean, Tuple[Integer, ...]]
 ) -> Numerical:
     """ inversion with respect to addition """
     return -n if isinstance(n, int) else (-n[0], -n[1])
@@ -201,7 +201,7 @@ def minimum(
 def valmax(
     container: Container,
     compfunc: Callable
-) -> Integer:
+) -> Union[Integer, Tuple[Integer, Integer]]:
     """ maximum by custom function """
     return compfunc(max(container, key=compfunc, default=0))
 
@@ -209,7 +209,7 @@ def valmax(
 def valmin(
     container: Container,
     compfunc: Callable
-) -> Integer:
+) -> Union[Integer, Tuple[Integer, Integer]]:
     """ minimum by custom function """
     return compfunc(min(container, key=compfunc, default=0))
 
