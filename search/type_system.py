@@ -114,7 +114,7 @@ def is_compatible(actual_type, expected_type):
         return actual_origin is tuple or actual_type is tuple
 
     if actual_type in (Tuple, tuple):
-        return expected_origin is tuple or expected_type in (Tuple, tuple)
+        return expected_origin in (tuple, frozenset, FrozenSet) or expected_type in (Tuple, tuple)
 
     # Conteneurs génériques.
     if actual_origin is not None or expected_origin is not None:
