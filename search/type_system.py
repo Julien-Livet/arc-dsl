@@ -66,11 +66,13 @@ def is_compatible(actual_type, expected_type):
         except TypeError:
             return False
 
-    # Un conteneur concret non paramétré peut satisfaire une interface
-    # Container générique lorsque son contenu n'est pas connu.
+    # Un conteneur concret peut satisfaire une interface Container.
     expected_origin = get_origin(expected_type)
 
-    if expected_origin is ABCContainer:
+    if expected_type in (Container, ABCContainer) or expected_origin in (
+        Container,
+        ABCContainer,
+    ):
         actual_origin = get_origin(actual_type) or actual_type
 
         try:
@@ -82,19 +84,27 @@ def is_compatible(actual_type, expected_type):
         expected_args = get_args(expected_type)
         actual_args = get_args(actual_type)
 
+        # Container non paramétré : tout conteneur convient.
         if not expected_args:
             return True
 
-        # Un conteneur non paramétré a un contenu inconnu.
+        # Contenu réel inconnu.
         if not actual_args:
             return True
 
-        # Si le conteneur attendu contient lui-même des conteneurs,
-        # les éléments connus du conteneur réel doivent pouvoir
-        # être des conteneurs.
+        # Vérification récursive des éléments.
+        expected_element_type = expected_args[0]
+
+        if actual_origin is tuple and len(actual_args) == 2 and actual_args[1] is Ellipsis:
+            actual_element_types = (actual_args[0],)
+        else:
+            actual_element_types = tuple(
+                arg for arg in actual_args if arg is not Ellipsis
+            )
+
         return all(
-            is_compatible(actual_arg, expected_args[0])
-            for actual_arg in actual_args
+            is_compatible(actual_arg, expected_element_type)
+            for actual_arg in actual_element_types
         )
 
     actual_origin = get_origin(actual_type)
