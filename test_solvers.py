@@ -99,7 +99,7 @@ def test_types() -> None:
             )
 
             count += 1
-        except Exception as exc:
+        except (TypeError, AssertionError) as exc:
             if (task in ignoredTasks):
                 print(f"{task} task ignored")
             else:
@@ -197,7 +197,7 @@ def test_expressions() -> None:
 
             expression = state.result
             count += 1
-        except Exception as exc:
+        except (AssertionError, RuntimeError, TypeError) as exc:
             if (task in ignoredTasks):
                 print(f"{task} task ignored")
             else:
