@@ -405,7 +405,7 @@ def infer_expression_type(expression, registry):
 
         if expression.name in {"hmirror", "vmirror", "dmirror", "cmirror", "upscale", "hupscale",
                                "vupscale", "downscale", "paint", "normalize", "shift",
-                               "rot90", "rot180", "rot270", "shoot", "fill", "decrement",
+                               "rot90", "rot180", "rot270", "fill", "decrement",
                                "increment", "crement", "underfill", "underpaint"}:
             actual_type = actual_types[0]
             expected_type = parameters[0]["type"]
