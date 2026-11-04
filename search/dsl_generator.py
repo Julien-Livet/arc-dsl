@@ -550,7 +550,7 @@ def get_compatible_primitives(expected_type, registry):
 
         declared_return = get_return_type(primitive_info)
 
-        if may_return_type(declared_return, expected_type):
+        if declared_return is Callable or may_return_type(declared_return, expected_type):
             candidates.append(name)
 
     return candidates
@@ -885,6 +885,12 @@ def attach_expression(state, expression, registry):
         expected_type = parent.parameter_types[index]
         actual_type = infer_expression_type(expression, registry)
 
+        isFunction: bool = False
+
+        if type(actual_type) is FunctionType and expected_type is not Callable:
+            isFunction = True
+            actual_type = actual_type.return_type
+
         if not is_compatible(actual_type, expected_type):
             raise TypeError(
                 f"Argument incompatible pour {parent.name} : "
@@ -913,7 +919,8 @@ def attach_expression(state, expression, registry):
             )
 
         # Vérifier son type réel.
-        actual_type = infer_expression_type(expression, registry)
+        if not isFunction:
+            actual_type = infer_expression_type(expression, registry)
 
         # On continue la remontée.
         if state.stack:
