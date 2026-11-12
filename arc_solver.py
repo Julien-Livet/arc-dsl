@@ -1,0 +1,162 @@
+import argparse
+import datetime
+import dsl_model.utils as utils
+from dsl_model.utils import VOCAB
+from dsl_model.dsl_model import DSLModel
+import json
+import math
+import numpy as np
+import os
+import pandas as pd
+from search.expressions import expression_to_str
+from solver.dsl_engine import Engine
+import tests.test_dsl_model as test_dsl_model
+import torch
+
+def processTask(engine, model, id_, data, depth: int = 6):
+    inputsTest: list = [(ex["input"]) for ex in data["test"]]
+    trainPairs: list = [(ex["input"], ex["output"]) for ex in data["train"]]
+
+    inputsTrain: list = []
+    outputsTrain: list = []
+
+    for i, o in trainPairs:
+        inputsTrain.append(i)
+        outputsTrain.append(o)
+
+    inputs, outputs, masks = utils.arc_pairs_to_tensors(trainPairs)
+    inputs = inputs.to(test_dsl_model.device)
+    outputs = outputs.to(test_dsl_model.device)
+    masks = masks.to(test_dsl_model.device)
+
+    candidates: list = [("I",
+                         pd.DataFrame(engine.dfIdentityVsPairs(inputsTrain, outputsTrain), columns = utils.scoreColumns),
+                         inputsTrain, inputsTrain)] * utils.M
+    candidates = sorted(candidates, key = lambda x: (tuple(-x[1].sum(axis = 0, skipna = False)), len(x[0]), x[0]))
+    count: int = 0
+    computeGraphs: bool = True
+
+    model.eval()
+
+    while (candidates[-1][1].sum(axis = 0, skipna = False)["Total cost"] and count < test_dsl_model.MAX_COUNT):
+        if (computeGraphs):
+            prog_graphs: list  = []
+            cost_tensors: list = []
+            grid_tensors: list = []
+
+            for program, df, _, programOutputs in candidates:
+                g = utils.build_prog_graph(program, VOCAB, test_dsl_model.device)
+                prog_graphs.append(g)
+                cost_tensors.append(utils.dataframe_to_cost_tensor(df).to(test_dsl_model.device))
+                grid_tensors.append(utils.grids_to_tensors(programOutputs))
+
+            computeGraphs = False
+
+            with torch.no_grad():
+                z_context = model.encode_context(
+                    inputs, outputs, masks,
+                    prog_graphs, cost_tensors, grid_tensors
+                )   # [1, D]
+
+        expression = utils.generate_one(
+            model, VOCAB, z_context, engine,
+            temperature = 5.0,
+            device = test_dsl_model.device,
+            max_depth = depth
+        )
+
+        program = expression_to_str(expression) if expression else None
+
+        if (program):
+            try:
+                dfTrain = pd.DataFrame(engine.dfExpressionPairs(inputsTrain, outputsTrain, expression), columns = utils.scoreColumns)
+                testOutputs = pd.DataFrame(engine.expressionOutputs(inputsTest, expression), columns = utils.scoreColumns)
+                cost = dfTrain["Total cost"].sum(skipna = False)
+                programOutputs = engine.expressionOutputs(inputsTrain, expression)
+
+                if (any(not utils.is_valid_arc_grid(g) for g in programOutputs)):
+                    program = None
+            except RuntimeError:
+                cost = math.inf
+        else:
+            cost = math.inf
+
+        if (program and not np.isinf(cost).any() and cost < candidates[0][1].sum(axis = 0, skipna = False)["Total cost"]
+            and not program in [c[0] for c in candidates]):
+            candidates.append((program, dfTrain, testOutputs, programOutputs))
+            candidates = sorted(candidates, key = lambda x: (tuple(-x[1].sum(axis = 0, skipna = False)), len(x[0]), x[0]))
+            count = 0
+            computeGraphs = True
+
+        count += 1
+
+    candidate = candidates[-1]
+
+    while (len(candidates) and not candidates[-1][1].sum(axis = 0, skipna = False)["Total cost"]):
+        candidate = candidates.pop()
+
+    print(f'{datetime.datetime.now()} #{id_} Found program: {candidate[0]}, cost: {candidate[1].sum(axis = 0, skipna = False)["Total cost"]}')
+
+    return candidate
+
+def processTasks(tasks):
+    dslModel = DSLModel(len(VOCAB.token2id), d_model = 256, device = test_dsl_model.device)
+    model = dslModel.to(test_dsl_model.device)
+    checkpoint = torch.load(test_dsl_model.modelFilename, map_location = test_dsl_model.device)
+    model.load_state_dict(checkpoint["model_state"])
+    engine = Engine()
+    results: dict = {}
+
+    for id_, arc_data in tasks:
+        _, _, testOutputs, _ = processTask(engine, model, id_, arc_data)
+
+        l: list = []
+
+        for output in testOutputs:
+            l.append({"attempt_1": output, "attempt_2": output})
+
+        results[id_] = l
+
+    return results
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Run ARC AGI 2 challenge"
+    )
+
+    parser.add_argument(
+        "--folder",
+        type=str,
+        default="evaluation",
+        help="Folder name (default: evaluation, can be training)",
+    )
+
+    args = parser.parse_args()
+
+    return args
+
+if (__name__ == "__main__"):
+    args = parse_args()
+    inputFilename: str = f"input/competitions/arc-prize-2026-arc-agi-2/arc-agi_{args.folder}_challenges.json"
+
+    with open(inputFilename, "r") as f:
+        data = json.load(f)
+
+    outputFilename: str = "submission.json"
+    submission: dict = {}
+    tasks: list = np.array_split(list(data.items()), os.cpu_count())
+
+    import multiprocessing
+
+    multiprocessing.set_start_method("spawn", force = True)
+
+    with multiprocessing.Pool(os.cpu_count()) as pool:
+        results: list = pool.map(processTasks, tasks)
+
+    submission: dict = {}
+
+    for result in results:
+        submission.update(result)
+
+    with open(outputFilename, "w") as f:
+        json.dump(submission, f)

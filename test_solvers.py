@@ -64,7 +64,7 @@ def test_grids() -> None:
             continue
 
         f = getattr(solvers, f"solve_{task}")
-        
+
         train = data[task]["train"]
 
         for pair in train:
@@ -158,7 +158,7 @@ def test_expressions() -> None:
                     for symbol in symbols
                     if getattr(symbol, "name", None)
                 }
-                
+
                 node = get_expression_node(expression, elementIndex)
 
                 try:
@@ -206,3 +206,24 @@ def test_expressions() -> None:
     print(f"{count}/{len(tasks)} passed tasks")
 
     assert errors #assert not errors, "\n".join(errors.values())
+
+
+def dsl_dataset() -> None:
+    data: dict = loadFolder("training")
+    registry = load_registry()
+    tasks = hodelTasks()
+    programs: list = []
+
+    for task in tasks:
+        if (not task in data):
+            print(f"{task} task skipped")
+
+            continue
+
+        solver = getattr(solvers, f"solve_{task}")
+        source = inspect.getsource(solver)
+        expression = parse_solver(source, registry)
+        programs.append(expression_to_str(expression))
+
+    with open("dsl_dataset.txt", "w") as f:
+        f.write("\n".join(programs))
