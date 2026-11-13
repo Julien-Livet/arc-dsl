@@ -1,4 +1,5 @@
 from bisect import bisect_left
+import dsl_model.utils as utils
 import inspect
 import json
 from multiprocessing import Pool
@@ -153,7 +154,7 @@ class Engine:
 
     def orderedIndexes(self) -> list[int]:
         iPrograms: list = sorted([(i, expression_to_str(e)) for i, e in enumerate(self.expressions)],
-                                 key = lambda x: (len(x[1]), x[1]))
+                                 key = lambda x: (utils.programDepth(x[1]), len(x[1]), x[1]))
 
         return [i for i, _ in iPrograms]
 
