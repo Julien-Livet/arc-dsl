@@ -36,6 +36,9 @@ def parse_args():
 
     return args
 
+def truncatedProgram(program: str) -> str:
+    return program if len(program) < 16 else program[:16] + "..."
+
 if __name__ == "__main__":
     args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -62,6 +65,10 @@ if __name__ == "__main__":
 
     model_version: int = 1
     count: int = 0
+    trajectoryLen: int = 0
+    trajectoryIndex: int = 0
+    targetProgram: str = ""
+    currentProgram: str = ""
 
     while (True):
         worker_L_tokens: list = []
@@ -81,8 +88,18 @@ if __name__ == "__main__":
                         break
                     else:
                         worker.init(engine, device, indexes.pop(0))
+
+                        if (args.num_workers == 1):
+                            trajectoryLen = len(worker.costs)
+                            trajectoryIndex = 1
+                            targetProgram = worker.costs[0][1]
+                            currentProgram = "I"
                 else:
                     loop = False
+
+            if (args.num_workers == 1):
+                trajectoryIndex = trajectoryLen - len(worker.costs) + 1
+                currentProgram = worker.program if worker.program else currentProgram
 
             if (count == n):
                 break
@@ -126,10 +143,19 @@ if __name__ == "__main__":
 
         model_version += 1
 
-        process.set_postfix(
-            version=model_version,
-            workers=args.num_workers,
-            loss=f"{loss_value:.6f}",
-        )
+        if (args.num_workers == 1):
+            process.set_postfix(
+                loss=f"{loss_value:.6f}",
+                trajectory=f"{trajectoryIndex}/{trajectoryLen}",
+                target=truncatedProgram(targetProgram),
+                program=truncatedProgram(currentProgram),
+                depth=utils.programDepth(targetProgram)
+            )
+        else:
+            process.set_postfix(
+                version=model_version,
+                workers=args.num_workers,
+                loss=f"{loss_value:.6f}",
+            )
 
     process.close()
