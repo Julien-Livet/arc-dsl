@@ -13,15 +13,9 @@ class Worker:
     def init(self, engine, device: str, j: int) -> bool:
         self.j = j
         self.targetProgram = engine.program(j)
-        self.trajectory = engine.trajectory(j)
+        self.trajectory = utils.filterTrajectory(engine.trajectory(j), self.targetProgram)
         self.grids = engine.grids(j)
-
-        try:
-            self.outputs = engine.outputs(j)
-        except RuntimeError:
-            self.j = None
-
-            return False
+        self.outputs = engine.outputs(j)
 
         pairs = list(zip(self.grids, self.outputs))
         inputs, outputs, masks = utils.arc_pairs_to_tensors(pairs)
