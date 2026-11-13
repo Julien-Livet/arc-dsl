@@ -3,6 +3,7 @@ import datetime
 import dsl_model.utils as utils
 from dsl_model.dsl_model import DSLModel
 from dsl_model.utils import VOCAB
+import inspect
 import json
 import math
 import numpy as np
@@ -12,6 +13,7 @@ from pickle import UnpicklingError
 import tabulate
 import time
 from search.expressions import expression_to_str
+from search.python_to_dsl import parse_solver
 from solver.dsl_engine import Engine
 import torch
 from typing import Dict, Tuple
@@ -186,6 +188,8 @@ def test_hodel_tasks():
     with open("../../ARC-AGI-2/data/training.txt", "r") as f:
         trainingTasks = f.read().split("\n")
 
+    import solvers
+
     for k, v in tasksByStep.items():
         if (k > 1):
             break
@@ -200,7 +204,12 @@ def test_hodel_tasks():
                 continue
 
             t2 = time.time()
-            passTask("training", task, True, k)
+            solver = getattr(solvers, f"solve_{task}")
+            source = inspect.getsource(solver)
+            expression = parse_solver(source, engine.registry)
+            program = expression_to_str(expression)
+            depth = utils.programDepth(program)
+            passTask("training", task, True, depth)
             print(f"Duration: {time.time() - t2} s")
 
         print(f"Duration for {k} step{'s' if k > 1 else ''} of DSL ({len(v)} tasks): {time.time() - t1} s")
