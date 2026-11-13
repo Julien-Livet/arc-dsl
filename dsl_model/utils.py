@@ -402,6 +402,9 @@ def generate_one(
         except:
             break
 
+        if (len(state.stack) > max_depth):
+            return None
+
     if (not validState(state)):
         return None
 
@@ -549,6 +552,9 @@ def generate_one_cached(
             )
         except:
             break
+
+        if (len(state.stack) > max_depth):
+            return None
 
     if not validState(state):
         return None
@@ -1053,3 +1059,15 @@ def reconstruct_experience(result):
         use_semantic=result["use_semantic"],
         model_version=result["model_version"],
     )
+
+def filterTrajectory(trajectory: list[tuple[float, str]], targetProgram: str, factor: float = 2.0) -> list[tuple[float, str]]:
+    assert(factor > 1.0)
+
+    filteredPrograms = set()
+    depth: int = programDepth(targetProgram)
+
+    for _, program in trajectory:
+        if (programDepth(program) > factor * depth):
+            filteredPrograms.add(program)
+
+    return list(filter(lambda x: not x[1] in filteredPrograms, trajectory))
