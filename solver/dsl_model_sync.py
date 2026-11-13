@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
         if (args.num_workers == 1):
             process.set_postfix(
-                loss=f"{loss_value:.6f}",
+                loss=loss_value,
                 trajectory=f"{trajectoryIndex}/{trajectoryLen}",
                 target=truncatedProgram(targetProgram),
                 program=truncatedProgram(currentProgram),
@@ -155,7 +155,7 @@ if __name__ == "__main__":
             process.set_postfix(
                 version=model_version,
                 workers=args.num_workers,
-                loss=f"{loss_value:.6f}",
+                loss=loss_value,
             )
 
     process.close()
