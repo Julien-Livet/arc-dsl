@@ -112,8 +112,7 @@ class Worker:
             except:
                 self.cost = math.inf
 
-        if (self.expression):
-            self.program = expression_to_str(self.expression)
+        self.program = expression_to_str(self.expression) if self.expression else None
 
         return False
 
