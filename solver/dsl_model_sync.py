@@ -118,7 +118,10 @@ if __name__ == "__main__":
         if (not len(list_L_total)):
             continue
 
-        torch.stack(list_L_total).mean().backward()
+        loss = torch.stack(list_L_total).mean()
+        loss_value = loss.detach().item()
+
+        loss.backward()
         optimizer.step()
 
         model_version += 1
@@ -126,6 +129,7 @@ if __name__ == "__main__":
         process.set_postfix(
             version=model_version,
             workers=args.num_workers,
+            loss=f"{loss_value:.6f}",
         )
 
     process.close()
