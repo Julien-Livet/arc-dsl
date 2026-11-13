@@ -737,7 +737,7 @@ def get_next_symbols(expected_type, registry, depth=0, max_depth=4):
     )
 
     candidates.extend(
-        get_compatible_function_references(expected_type, registry)
+        get_compatible_function_references(expected_type, registry, depth, max_depth)
     )
 
     if depth < max_depth:
@@ -982,7 +982,7 @@ def select_symbol(state, symbol, registry):
     raise TypeError(f"Symbole non pris en charge : {symbol}")
 
 
-def get_compatible_function_references(expected_type, registry):
+def get_compatible_function_references(expected_type, registry, depth=0, max_depth=4):
     candidates = []
 
     for name in registry["primitives"]:
@@ -993,8 +993,10 @@ def get_compatible_function_references(expected_type, registry):
             compatible = True
         elif isinstance(expected_type, FunctionType):
             compatible = actual_type.is_compatible_with(expected_type)
-        else:
+        elif depth <= max_depth:
             compatible = is_compatible(actual_type, expected_type)
+        else:
+            compatible = False
 
         if compatible:
             candidates.append(ref)
