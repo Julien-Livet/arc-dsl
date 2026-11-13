@@ -137,8 +137,7 @@ class Worker:
             except:
                 self.cost = math.inf
 
-        if (self.expression):
-            self.program = expression_to_str(self.expression)
+        self.program = expression_to_str(self.expression) if self.expression else None
 
         if (not self.program or math.isinf(self.cost)):
             self.temperature = min(utils.maxTemperature, self.temperature * 1.05)
