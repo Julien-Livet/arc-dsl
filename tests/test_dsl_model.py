@@ -122,7 +122,7 @@ def processTask(engine, model, id_, data, depth: int = 10, debug: bool = True):
                 testedPrograms.add(program)
 
                 if (any(not utils.is_valid_arc_grid(g) for g in programOutputs)):
-                    expression = None
+                    program = None
             except:
                 cost = math.inf
         else:
