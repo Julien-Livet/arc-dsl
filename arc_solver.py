@@ -21,8 +21,8 @@ def processTask(engine, model, id_, data, depth: int = 6):
     outputsTrain: list = []
 
     for i, o in trainPairs:
-        inputsTrain.append(i)
-        outputsTrain.append(o)
+        inputsTrain.append(tuple(map(tuple, i)))
+        outputsTrain.append(tuple(map(tuple, o)))
 
     inputs, outputs, masks = utils.arc_pairs_to_tensors(trainPairs)
     inputs = inputs.to(test_dsl_model.device)
