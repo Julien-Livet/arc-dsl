@@ -15,5 +15,6 @@ RUN mkdir scripts
 WORKDIR /app/scripts
 COPY . arc-dsl
 WORKDIR /app/scripts/arc-dsl
+RUN pip install -r requirements.txt
 
 ENTRYPOINT ["/bin/bash"]
