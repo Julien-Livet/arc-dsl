@@ -4,8 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     python3 \
-    python3-pip \
-    python3-pytest \
     git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,6 +13,6 @@ RUN mkdir scripts
 WORKDIR /app/scripts
 COPY . arc-dsl
 WORKDIR /app/scripts/arc-dsl
-RUN pip install -r requirements.txt
+RUN python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 
 ENTRYPOINT ["/bin/bash"]
