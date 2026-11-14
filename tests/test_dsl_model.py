@@ -54,15 +54,15 @@ def processTask(engine, model, id_, data, depth: int = 10, debug: bool = True):
     outputsTrain: list = []
 
     for i, o in trainPairs:
-        inputsTrain.append(i)
-        outputsTrain.append(o)
+        inputsTrain.append(tuple(map(tuple, i)))
+        outputsTrain.append(tuple(map(tuple, o)))
 
     inputsTest: list = []
     outputsTest: list = []
 
     for i, o in testPairs:
-        inputsTest.append(i)
-        outputsTest.append(o)
+        inputsTest.append(tuple(map(tuple, i)))
+        outputsTest.append(tuple(map(tuple, o)))
 
     inputs, outputs, masks = utils.arc_pairs_to_tensors(trainPairs)
     inputs = inputs.to(device)
@@ -203,12 +203,12 @@ def test_hodel_tasks():
                 print("Skipped")
                 continue
 
-            t2 = time.time()
             solver = getattr(solvers, f"solve_{task}")
             source = inspect.getsource(solver)
             expression = parse_solver(source, engine.registry)
             program = expression_to_str(expression)
             depth = utils.programDepth(program)
+            t2 = time.time()
             passTask("training", task, True, depth)
             print(f"Duration: {time.time() - t2} s")
 
