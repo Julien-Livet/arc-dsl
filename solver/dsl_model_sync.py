@@ -99,6 +99,7 @@ if __name__ == "__main__":
 
             if (args.num_workers == 1):
                 trajectoryIndex = trajectoryLen - len(worker.costs) + 1
+                targetProgram = worker.costs[0][1]
                 currentProgram = worker.program if worker.program else currentProgram
 
             if (count == n):
