@@ -13,6 +13,6 @@ RUN mkdir scripts
 WORKDIR /app/scripts
 COPY . arc-dsl
 WORKDIR /app/scripts/arc-dsl
-RUN python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+RUN python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 
 ENTRYPOINT ["/bin/bash"]
