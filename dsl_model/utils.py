@@ -1060,8 +1060,8 @@ def reconstruct_experience(result):
         model_version=result["model_version"],
     )
 
-def filterTrajectory(trajectory: list[tuple[float, str]], targetProgram: str, factor: float = 2.0) -> list[tuple[float, str]]:
-    assert(factor > 1.0)
+def filterTrajectory(trajectory: list[tuple[float, str]], targetProgram: str, factor: float = 1.0) -> list[tuple[float, str]]:
+    assert(factor >= 1.0)
 
     filteredPrograms = set()
     depth: int = programDepth(targetProgram)
