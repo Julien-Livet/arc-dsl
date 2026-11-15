@@ -680,6 +680,38 @@ def infer_expression_type(expression, registry):
     )
 
 
+def _container_element_type(container_type):
+    """Retourne le type des éléments d'un conteneur, ou Any s'il est inconnu."""
+    if isinstance(container_type, FunctionType):
+        return Any
+
+    options = (
+        get_args(container_type)
+        if _is_union(container_type)
+        else (container_type,)
+    )
+
+    element_types = []
+
+    for option in options:
+        option_args = tuple(
+            arg for arg in get_args(option) if arg is not Ellipsis
+        )
+
+        # Conteneur non paramétré : contenu inconnu.
+        if get_origin(option) not in (tuple, frozenset) or not option_args:
+            return Any
+
+        for element_type in option_args:
+            if element_type not in element_types:
+                element_types.append(element_type)
+
+    if len(element_types) == 1:
+        return element_types[0]
+
+    return Union[tuple(element_types)]
+
+
 def _infer_function_combinator(registry, name, arguments, actual_types):
     """Infère la signature produite par un combinateur de fonctions."""
     if name == "compose":
@@ -716,9 +748,11 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
             isinstance(outer_expression, PrimitiveRefExpr)
             and outer_expression.name in {"argmin", "argmax"}
         ):
+            # argmin/argmax retournent un élément du conteneur produit par a,
+            # et non le conteneur lui-même.
             outer = FunctionType(
                 parameter_types=outer.parameter_types,
-                return_type=a.return_type,
+                return_type=_container_element_type(a.return_type),
                 variadic=outer.variadic,
             )
 
