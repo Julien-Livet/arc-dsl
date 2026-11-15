@@ -1,14 +1,77 @@
-
 import argparse
 from .dsl_engine import Engine
 from dsl_model.dsl_model import DSLModel
 import dsl_model.utils as utils
 from dsl_model.worker_sync import Worker
 from dsl_model.utils import VOCAB
+import math
 import os
+import pandas as pd
+from rich.console import Console, Group
+from rich.live import Live
+from rich.table import Table
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    TaskProgressColumn,
+)
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
+
+def make_goal_table(current, next_program, target):
+    table = Table(
+        title="Goal",
+        show_header=True,
+        header_style="bold cyan",
+        expand=False,
+    )
+
+    table.add_column("Program")
+    table.add_column("Cost", justify="right")
+    table.add_column("Expression")
+
+    table.add_row(
+        "Current",
+        f"{current[0]:.3e}",
+        current[1],
+    )
+    table.add_row(
+        "Next",
+        f"{next_program[0]:.3e}",
+        next_program[1],
+    )
+    table.add_row(
+        "Target",
+        f"{target[0]:.3e}",
+        target[1],
+    )
+
+    return table
+
+def make_pool_table(pool):
+    table = Table(
+        title="Pool",
+        show_header=True,
+        header_style="bold cyan",
+        expand=False,
+    )
+
+    table.add_column("##", justify="right")
+    table.add_column("Cost", justify="right")
+    table.add_column("Expression")
+
+    for index, (cost, expression) in enumerate(pool, start=1):
+        table.add_row(
+            f"{index:02d}",
+            f"{cost:.3e}",
+            expression,
+        )
+
+    return table
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -45,7 +108,6 @@ if __name__ == "__main__":
     engine = Engine()
     n = engine.count()
     indexes = engine.orderedIndexes()
-    process = tqdm(total = len(indexes), desc = "Programs", dynamic_ncols = True)
     dslModel = DSLModel(len(VOCAB.token2id), d_model=256, device = device)
     model = dslModel.to(device)
 
@@ -65,10 +127,37 @@ if __name__ == "__main__":
 
     model_version: int = 1
     count: int = 0
+    currentWorker = None
     trajectoryLen: int = 0
-    trajectoryIndex: int = 0
-    targetProgram: str = ""
-    currentProgram: str = ""
+    currentProgram: str = "I"
+    trajectoryIndex: int = 1
+
+    if (args.num_workers == 1):
+        console = Console()
+        progress = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TextColumn("({task.completed:.0f}/{task.total:.0f})"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            TextColumn("loss={task.fields[loss]}"),
+            TextColumn("trajectory={task.fields[trajectory]}"),
+            console=console,
+            auto_refresh=False,
+        )
+        task = progress.add_task(
+            "Programs",
+            total=n,
+            loss="N/A",
+            trajectory="N/A",
+        )
+        live = None
+        goal_table = Table(title="Goal")
+        goal_table.add_column("Status")
+        goal_table.add_row("No active trajectory")
+    else:
+        process = tqdm(total = len(indexes), desc = "Programs", dynamic_ncols = True)
 
     while (True):
         worker_L_tokens: list = []
@@ -81,7 +170,13 @@ if __name__ == "__main__":
                 if (worker.process(device, engine, model)):
                     if (worker.j != None):
                         count += 1
-                        process.update()
+
+                        if (args.num_workers == 1):
+                            progress.update(
+                                task,
+                                advance=1)
+                        else:
+                            process.update()
 
                     if (not len(indexes)):
                         c = True
@@ -91,16 +186,12 @@ if __name__ == "__main__":
 
                         if (args.num_workers == 1):
                             trajectoryLen = len(worker.costs)
-                            trajectoryIndex = 1
-                            targetProgram = worker.costs[0][1]
                             currentProgram = "I"
                 else:
                     loop = False
 
             if (args.num_workers == 1):
-                trajectoryIndex = trajectoryLen - len(worker.costs) + 1
-                targetProgram = worker.costs[0][1]
-                currentProgram = worker.program if worker.program else currentProgram
+                currentWorker = worker
 
             if (count == n):
                 break
@@ -145,13 +236,61 @@ if __name__ == "__main__":
         model_version += 1
 
         if (args.num_workers == 1):
-            process.set_postfix(
+            if (len(currentWorker.costs)):
+                trajectoryIndex: int = trajectoryLen - len(currentWorker.costs) + 1
+
+            currentProgram = currentWorker.program if currentWorker.program else currentProgram
+            targetProgram: str = currentWorker.targetProgram
+
+            progress.update(
+                task,
+                advance=0,
                 loss=f"{loss_value:.3e}",
                 trajectory=f"{trajectoryIndex}/{trajectoryLen}",
-                target=truncatedProgram(targetProgram),
-                program=truncatedProgram(currentProgram),
-                depth=utils.programDepth(targetProgram)
             )
+
+            if (len(currentWorker.costs)):
+                try:
+                    cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
+                except:
+                    cost = math.inf
+        
+                goal_table = make_goal_table(
+                    (cost, currentProgram),
+                    currentWorker.costs[0],
+                    (0.0, targetProgram),
+                )
+
+            pool: list = [(candidate[1].sum(axis = 0, skipna = False)["Total cost"], candidate[0]) for candidate in currentWorker.candidates]
+            unique_pool = {}
+
+            for candidate in currentWorker.candidates:
+                expression = candidate[0]
+                cost = candidate[1].sum(axis=0, skipna=False)["Total cost"]
+
+                if expression not in unique_pool or cost < unique_pool[expression]:
+                    unique_pool[expression] = cost
+
+            pool = [
+                (cost, expression)
+                for expression, cost in unique_pool.items()
+            ]
+            pool.sort(key=lambda item: item[0])
+
+            pool_table = make_pool_table(pool)
+
+            renderable = Group(progress, goal_table, pool_table)
+
+            if (live is None):
+                live = Live(
+                    renderable,
+                    console=console,
+                    refresh_per_second=4,
+                    screen=False,
+                )
+                live.start()
+            else:
+                live.update(renderable, refresh=True)
         else:
             process.set_postfix(
                 version=model_version,
@@ -159,4 +298,7 @@ if __name__ == "__main__":
                 loss=f"{loss_value:.3e}",
             )
 
-    process.close()
+    if (args.num_works == 1):
+        live.stop()
+    else:
+        process.close()
