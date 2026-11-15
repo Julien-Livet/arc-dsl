@@ -9,6 +9,7 @@ plotly
 PyQt5
 pytest
 pytest-profiling
+rich
 scikit-learn
 scipy
 sympy
