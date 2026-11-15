@@ -24,12 +24,7 @@ class Worker:
         self.masks = masks.to(device)
         self.costs = list(reversed(self.trajectory))
         self.costs = sorted(self.costs, key = lambda x: (-x[0], len(x[1])))
-
-        try:
-            self.candidates: list = [("I", pd.DataFrame(engine.dfIdentity(j), columns = utils.scoreColumns), self.grids)] * utils.M
-        except RuntimeError:
-            self.candidates: list = [("I", pd.DataFrame([math.inf] * len(utils.scoreColumns), columns = utils.scoreColumns), self.grids)] * utils.M
-
+        self.candidates: list = [("I", pd.DataFrame(engine.dfIdentity(j), columns = utils.scoreColumns), self.grids)] * utils.M
         self.computeGraphs: bool = True
         self.temperature: float = utils.minTemperature
         self.testedPrograms = set()
