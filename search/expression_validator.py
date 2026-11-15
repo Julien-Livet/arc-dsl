@@ -530,8 +530,16 @@ def infer_expression_type(expression, registry):
             return Tuple[a_type, b_type]
 
         if expression.name == "pair":
+            # pair(a, b) vaut tuple(zip(a, b)) : un tuple de couples
+            # d'éléments, et non le couple des deux conteneurs.
             a_type, b_type = actual_types
-            return Tuple[a_type, b_type]
+            return Tuple[
+                Tuple[
+                    _container_element_type(a_type),
+                    _container_element_type(b_type),
+                ],
+                ...,
+            ]
 
         if expression.name == "prapply":
             function_type, a_type, b_type = actual_types
@@ -779,25 +787,27 @@ def _infer_function_combinator(registry, name, arguments, actual_types):
                 )
 
             if primitive_name == "apply":
-                function_expression = arguments[1]
+                # fork(apply, a, b)(x) vaut apply(a(x), b(x)) : le conteneur
+                # b(x) dont chaque élément est transformé par la fonction a(x).
+                mapped_function = a.return_type
+                container_origin = get_origin(b.return_type)
 
-                if isinstance(function_expression, PrimitiveExpr):
-                    if function_expression.name == "lbind":
-                        bound_expression = function_expression.arguments[0]
+                if isinstance(mapped_function, FunctionType):
+                    element_type = mapped_function.return_type
 
-                        if (
-                            isinstance(bound_expression, PrimitiveRefExpr)
-                            and bound_expression.name == "lbind"
-                        ):
-                            inner_function = function_expression.arguments[1]
+                    if container_origin is frozenset:
+                        return FunctionType(
+                            parameter_types=result.parameter_types,
+                            return_type=FrozenSet[element_type],
+                            variadic=result.variadic,
+                        )
 
-                            if isinstance(inner_function, PrimitiveRefExpr):
-                                if inner_function.name == "shift":
-                                    return FunctionType(
-                                        parameter_types=result.parameter_types,
-                                        return_type=b.return_type,
-                                        variadic=result.variadic,
-                                    )
+                    if container_origin is tuple:
+                        return FunctionType(
+                            parameter_types=result.parameter_types,
+                            return_type=Tuple[element_type, ...],
+                            variadic=result.variadic,
+                        )
 
         return result
 

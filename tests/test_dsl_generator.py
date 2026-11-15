@@ -2,15 +2,17 @@ import pytest
 
 from arc_types import Grid
 from search.dsl_generator import (
+    APPLY,
     APPLY_NAME,
     GenerationState,
+    get_current_depth,
     get_current_goal,
     get_next_symbols,
     select_symbol,
 )
 from search.dsl_registry import load_registry
 from search.expression_validator import infer_expression_type
-from search.expressions import PrimitiveRefExpr, expression_to_str
+from search.expressions import InputExpr, PrimitiveRefExpr, expression_to_str
 from search.type_system import is_compatible
 
 
@@ -29,7 +31,7 @@ def select(state, item, registry):
     symbols = get_next_symbols(
         expected_type=get_current_goal(state),
         registry=registry,
-        depth=len(state.stack),
+        depth=get_current_depth(state),
         max_depth=state.max_depth,
     )
 
@@ -40,7 +42,10 @@ def select(state, item, registry):
         if getattr(symbol, "name", None)
     }
 
-    if isinstance(item, tuple):
+    if item is APPLY:
+        assert APPLY in symbols
+        symbol = APPLY
+    elif isinstance(item, tuple):
         symbol = named[item[1]]
         assert isinstance(symbol, PrimitiveRefExpr)
     elif item in primitives:
@@ -139,3 +144,88 @@ def test_finished_expression_is_never_a_function(registry):
 
     assert state.finished
     assert expression_to_str(state.result) == "compose(hmirror, vmirror)(I)"
+
+
+def test_apply_symbol_is_offered_until_max_depth(registry):
+    assert APPLY in get_next_symbols(Grid, registry, depth=0, max_depth=1)
+    assert APPLY not in get_next_symbols(Grid, registry, depth=1, max_depth=1)
+
+
+def test_any_slot_is_ambiguous_without_apply_symbol(registry):
+    # Sans symbole d'application, chain(...) reste une valeur dans le
+    # premier emplacement (Any) de equality, et I devient le second.
+    state = generate(
+        [
+            "branch", "equality",
+            "chain", ref("size"), ref("dedupe"), ref("first"),
+            "I",
+        ],
+        registry,
+    )
+
+    pending = state.stack[-1]
+
+    assert pending.name == "branch"
+    assert (
+        expression_to_str(pending.arguments[0])
+        == "equality(chain(size, dedupe, first), I)"
+    )
+
+
+def test_apply_symbol_applies_a_function_in_an_any_slot(registry):
+    # Tâche 746b3537.
+    state = generate(
+        [
+            APPLY, "branch", "equality",
+            APPLY, "chain", ref("size"), ref("dedupe"), ref("first"), "I",
+            "ONE", ref("dmirror"), ref("identity"),
+            "I",
+        ],
+        registry,
+        max_depth=3,
+    )
+
+    assert state.finished
+    assert expression_to_str(state.result) == (
+        "branch(equality(chain(size, dedupe, first)(I), ONE), "
+        "dmirror, identity)(I)"
+    )
+    assert is_compatible(infer_expression_type(state.result, registry), Grid)
+
+
+def test_depth_ignores_an_application_awaiting_its_function(registry):
+    state = GenerationState(expected_type=Grid, max_depth=1)
+    state = select(state, APPLY, registry)
+
+    # compose(hmirror, vmirror)(I) est de profondeur 1 : compose est au
+    # même niveau que l'application elle-même.
+    assert len(state.stack) == 1
+    assert get_current_depth(state) == 0
+
+    state = select(state, "compose", registry)
+    state = select(state, ref("hmirror"), registry)
+    state = select(state, ref("vmirror"), registry)
+
+    assert get_current_depth(state) == 1
+
+    state = select(state, "I", registry)
+
+    assert state.finished
+    assert expression_to_str(state.result) == "compose(hmirror, vmirror)(I)"
+
+
+def test_apply_symbol_requires_a_function(registry):
+    state = GenerationState(expected_type=Grid, max_depth=4)
+    state = select(state, APPLY, registry)
+
+    with pytest.raises(TypeError):
+        select_symbol(state, InputExpr(), registry)
+
+
+def test_apply_symbol_checks_the_result_of_the_function(registry):
+    state = GenerationState(expected_type=Grid, max_depth=4)
+    state = select(state, APPLY, registry)
+
+    # size retourne un entier : son application ne peut pas être une grille.
+    with pytest.raises(TypeError):
+        select(state, ref("size"), registry)

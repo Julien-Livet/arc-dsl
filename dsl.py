@@ -1027,7 +1027,7 @@ def fill(
 
 def paint(
     grid: Grid,
-    obj: Object
+    obj: Union[Object, Tuple[Cell, ...]]
 ) -> Grid:
     """ paint object to grid """
     h, w = len(grid), len(grid[0])

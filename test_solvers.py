@@ -5,8 +5,16 @@ from search.type_system import is_compatible
 from search.dsl_registry import load_registry
 from search.python_to_dsl import parse_solver
 from search.expression_validator import infer_expression_type
-from search.expressions import expression_to_str, PrimitiveRefExpr
-from search.dsl_generator import get_next_symbols, GenerationState, get_current_goal, select_symbol, get_expression_node
+from search.expressions import expression_to_str, PrimitiveRefExpr, ApplyExpr
+from search.dsl_generator import (
+    get_next_symbols,
+    GenerationState,
+    get_current_goal,
+    get_current_depth,
+    select_symbol,
+    walk_expression,
+    APPLY,
+)
 from arc_types import Grid
 
 
@@ -106,11 +114,89 @@ def test_types() -> None:
     assert not errors, "\n".join(errors.values())
 
 
+def reconstructExpression(expression, registry, maxDepth: int):
+    """Reconstruit une expression symbole par symbole avec le générateur."""
+    state = GenerationState(expected_type=Grid, max_depth=maxDepth)
+
+    for node in walk_expression(expression):
+        if (state.finished):
+            raise AssertionError(
+                f"Génération terminée trop tôt : {expression_to_str(state.result)}"
+            )
+
+        goal = get_current_goal(state)
+
+        symbols = get_next_symbols(
+            expected_type=goal,
+            registry=registry,
+            depth=get_current_depth(state),
+            max_depth=state.max_depth,
+        )
+
+        if not symbols:
+            raise RuntimeError(
+                f"Aucun symbole disponible pour le type {goal}"
+            )
+
+        # Une application f(...)(x) est annoncée par le symbole APPLY.
+        if type(node) is ApplyExpr:
+            if APPLY not in symbols:
+                raise AssertionError(
+                    f"Symbole {APPLY.name} absent des candidats : {symbols}"
+                )
+
+            state = select_symbol(state, APPLY, registry)
+
+            continue
+
+        primitiveSymbols = {
+            symbol for symbol in symbols
+            if isinstance(symbol, str)
+        }
+
+        namedSymbols = {
+            symbol.name: symbol
+            for symbol in symbols
+            if getattr(symbol, "name", None)
+        }
+
+        element = node.name
+
+        if type(node) is PrimitiveRefExpr:
+            if element in namedSymbols:
+                selected_symbol = namedSymbols[element]
+            elif element in primitiveSymbols:
+                selected_symbol = element
+            else:
+                raise AssertionError(
+                    f"Symbole {element} absent des candidats : {symbols}"
+                )
+        else:
+            if element in primitiveSymbols:
+                selected_symbol = element
+            elif element in namedSymbols:
+                selected_symbol = namedSymbols[element]
+            else:
+                raise AssertionError(
+                    f"Symbole {element} absent des candidats : {symbols}"
+                )
+
+        state = select_symbol(
+            state,
+            selected_symbol,
+            registry,
+        )
+
+    if (not state.finished):
+        raise AssertionError("Génération inachevée")
+
+    return state.result
+
+
 def test_expressions() -> None:
     registry = load_registry()
     errors: dict = {}
     tasks = hodelTasks()
-    ignoredTasks: set = {"a64e4611", }
     count: int = 0
 
     for task in tasks:
@@ -122,86 +208,22 @@ def test_expressions() -> None:
         source = inspect.getsource(solver)
         expression = parse_solver(source, registry)
         program = expression_to_str(expression)
-        elementIndex: int = 0
-
-        state = GenerationState(expected_type=Grid, max_depth=programDepth(program))
 
         try:
-            while (not state.finished):
-                goal = get_current_goal(state)
+            result = reconstructExpression(expression, registry, programDepth(program))
+            reconstructed = expression_to_str(result)
 
-                depth = len(state.stack)
+            assert reconstructed == program, (
+                f"programme reconstruit différent : {reconstructed}"
+            )
 
-                symbols = get_next_symbols(
-                    expected_type=goal,
-                    registry=registry,
-                    depth=depth,
-                    max_depth=state.max_depth,
-                )
-
-                if not symbols:
-                    raise RuntimeError(
-                        f"Aucun symbole disponible pour le type {goal}"
-                    )
-
-                primitiveSymbols = {
-                    symbol for symbol in symbols
-                    if isinstance(symbol, str)
-                }
-
-                namedSymbols = {
-                    symbol.name: symbol
-                    for symbol in symbols
-                    if getattr(symbol, "name", None)
-                }
-
-                node = get_expression_node(expression, elementIndex)
-
-                try:
-                    element = node.name
-                except AttributeError:
-                    elementIndex += 1
-
-                    continue
-
-                if type(node) is PrimitiveRefExpr:
-                    if element in namedSymbols:
-                        selected_symbol = namedSymbols[element]
-                    elif element in primitiveSymbols:
-                        selected_symbol = element
-                    else:
-                        raise AssertionError(
-                            f"Symbole {element} absent des candidats : {symbols}"
-                        )
-                else:
-                    if element in primitiveSymbols:
-                        selected_symbol = element
-                    elif element in namedSymbols:
-                        selected_symbol = namedSymbols[element]
-                    else:
-                        raise AssertionError(
-                            f"Symbole {element} absent des candidats : {symbols}"
-                        )
-
-                state = select_symbol(
-                    state,
-                    selected_symbol,
-                    registry,
-                )
-
-                elementIndex += 1
-
-            expression = state.result
             count += 1
         except (AssertionError, RuntimeError, TypeError) as exc:
-            if (task in ignoredTasks):
-                print(f"{task} task ignored")
-            else:
-                errors[task] = f"{task}: {type(exc).__name__}: {exc}"
+            errors[task] = f"{task}: {type(exc).__name__}: {exc}"
 
     print(f"{count}/{len(tasks)} passed tasks")
 
-    assert errors #assert not errors, "\n".join(errors.values())
+    assert not errors, "\n".join(errors.values())
 
 
 def dsl_dataset() -> None:

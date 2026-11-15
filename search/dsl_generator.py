@@ -50,6 +50,24 @@ APPLY_NAME = "__apply__"
 
 
 @dataclass(frozen=True)
+class ApplySymbol:
+    """
+    Symbole d'application explicite.
+
+    Il annonce que la prochaine expression construite est une fonction,
+    puis que ses arguments suivent : f(...)(a, b). Il lève l'ambiguïté des
+    emplacements qui acceptent aussi bien une fonction qu'une valeur
+    (Any, Callable), où le typage seul ne permet pas de savoir si la
+    fonction doit être appliquée.
+    """
+
+    name: str = APPLY_NAME
+
+
+APPLY = ApplySymbol()
+
+
+@dataclass(frozen=True)
 class Candidate:
     expression: Any
     result_type: Any
@@ -748,6 +766,9 @@ def get_next_symbols(expected_type, registry, depth=0, max_depth=4):
             get_compatible_primitives(expected_type, registry)
         )
 
+        # Une application explicite peut produire n'importe quel type.
+        candidates.append(APPLY)
+
     return candidates
 
 
@@ -827,6 +848,24 @@ def add_completed_argument(state, argument, registry):
         return expression
 
     return state
+
+
+def awaits_function(pending):
+    """Indique si une application explicite attend encore sa fonction."""
+    return pending.name == APPLY_NAME and pending.arguments[0] is None
+
+
+def get_current_depth(state):
+    """
+    Retourne la profondeur d'imbrication du prochain symbole.
+
+    Une application explicite dont la fonction reste à construire n'ajoute
+    pas de niveau : dans f(...)(x), f est au même niveau que l'application.
+    """
+    return sum(
+        1 for pending in state.stack
+        if not awaits_function(pending)
+    )
 
 
 def get_current_goal(state):
@@ -939,6 +978,11 @@ def attach_expression(state, expression, registry):
 
         parent.arguments[index] = expression
 
+        # Application explicite : la fonction est connue, ses paramètres
+        # deviennent les prochains emplacements à remplir.
+        if parent.name == APPLY_NAME and index == 0:
+            expand_pending_application(parent, actual_type)
+
         # Le parent est-il terminé ?
         if any(arg is None for arg in parent.arguments):
             return state
@@ -973,6 +1017,20 @@ def select_symbol(state, symbol, registry):
     # Cas d'une référence de fonction : à traiter séparément.
     if isinstance(symbol, PrimitiveRefExpr):
         return attach_expression(state, symbol, registry)
+
+    # Cas d'une application explicite : la fonction reste à construire.
+    if isinstance(symbol, ApplySymbol):
+        state.stack.append(
+            PendingExpression(
+                name=APPLY_NAME,
+                arguments=[None],
+                parameter_types=(Callable,),
+                return_type=get_current_goal(state),
+                depth=len(state.stack),
+            )
+        )
+
+        return state
 
     # Cas d'une primitive.
     if isinstance(symbol, str):
@@ -1049,6 +1107,33 @@ def create_pending_application(function_expression, function_type, depth=0):
         return_type=function_type.return_type,
         depth=depth,
     )
+
+
+def expand_pending_application(pending, function_type):
+    """Ajoute à une application explicite les paramètres de sa fonction."""
+    check_applicable(function_type)
+
+    expected_type = pending.return_type
+    result_type = function_type.return_type
+
+    # Le résultat doit pouvoir convenir à l'emplacement visé, sauf s'il
+    # s'agit d'une fonction (qui pourra à son tour être appliquée).
+    if (
+        not isinstance(result_type, FunctionType)
+        and not is_function_type(result_type)
+        and not slot_accepts_function(expected_type)
+        and not types_match(result_type, expected_type)
+    ):
+        raise TypeError(
+            f"Résultat incompatible pour {APPLY_NAME} : {result_type}, "
+            f"attendu : {expected_type}"
+        )
+
+    pending.arguments.extend([None] * function_type.arity)
+    pending.parameter_types = (
+        tuple(pending.parameter_types) + function_type.parameter_types
+    )
+    pending.return_type = result_type
 
 
 def walk_expression(expression):
