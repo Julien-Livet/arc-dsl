@@ -46,6 +46,9 @@ class PrimitiveSymbol:
     return_type: Any
 
 
+APPLY_NAME = "__apply__"
+
+
 @dataclass(frozen=True)
 class Candidate:
     expression: Any
@@ -847,55 +850,92 @@ def get_current_goal(state):
     return None
 
 
+def slot_accepts_function(expected_type):
+    """Indique si un emplacement peut recevoir une fonction non appliquée."""
+
+    if expected_type is None or expected_type is Any:
+        return True
+
+    if isinstance(expected_type, FunctionType) or is_function_type(expected_type):
+        return True
+
+    if get_origin(expected_type) in (Union, types.UnionType):
+        return any(
+            slot_accepts_function(option)
+            for option in get_args(expected_type)
+        )
+
+    return False
+
+
+def fills_slot(actual_type, expected_type):
+    """Indique si une expression terminée convient à son emplacement."""
+
+    if expected_type is None or expected_type is Any:
+        return True
+
+    if isinstance(actual_type, FunctionType):
+        if get_origin(expected_type) in (Union, types.UnionType):
+            return any(
+                fills_slot(actual_type, option)
+                for option in get_args(expected_type)
+            )
+
+        if isinstance(expected_type, FunctionType) or is_function_type(expected_type):
+            return actual_type.is_compatible_with(expected_type)
+
+        return False
+
+    return matches_type(actual_type, expected_type)
+
+
 def attach_expression(state, expression, registry):
     """Insère une expression terminée dans son parent."""
 
     while True:
+        actual_type = infer_expression_type(expression, registry)
+
+        if state.stack:
+            parent = state.stack[-1]
+
+            # Trouver le prochain emplacement disponible.
+            index = next(
+                i for i, argument in enumerate(parent.arguments)
+                if argument is None
+            )
+
+            expected_type = parent.parameter_types[index]
+            owner = f"Argument incompatible pour {parent.name}"
+        else:
+            parent = None
+            expected_type = state.expected_type
+            owner = "Résultat incompatible"
+
+        # Une fonction placée là où une valeur est attendue doit être
+        # appliquée : son résultat sera rattaché au même emplacement.
+        if (
+            isinstance(actual_type, FunctionType)
+            and not slot_accepts_function(expected_type)
+        ):
+            state.stack.append(
+                create_pending_application(
+                    expression,
+                    actual_type,
+                    depth=len(state.stack),
+                )
+            )
+            return state
+
+        if not fills_slot(actual_type, expected_type):
+            raise TypeError(
+                f"{owner} : {actual_type}, attendu : {expected_type}"
+            )
 
         # Aucun parent : on vient de terminer la racine.
-        if not state.stack:
-            actual_type = infer_expression_type(expression, registry)
-
-            if (
-                isinstance(actual_type, FunctionType)
-                and not is_compatible(actual_type, state.expected_type)
-            ):
-                pending = create_pending_application(expression, actual_type)
-                state.stack.append(pending)
-                return state
-
-            if not is_compatible(actual_type, state.expected_type):
-                raise TypeError(
-                    f"Résultat incompatible : {actual_type}, "
-                    f"attendu : {state.expected_type}"
-                )
-
+        if parent is None:
             state.result = expression
             state.finished = True
             return state
-
-        parent = state.stack[-1]
-
-        # Trouver le prochain emplacement disponible.
-        index = next(
-            i for i, argument in enumerate(parent.arguments)
-            if argument is None
-        )
-
-        expected_type = parent.parameter_types[index]
-        actual_type = infer_expression_type(expression, registry)
-
-        isFunction: bool = False
-
-        if type(actual_type) is FunctionType and expected_type is not Callable:
-            isFunction = True
-            actual_type = actual_type.return_type
-
-        if not is_compatible(actual_type, expected_type):
-            raise TypeError(
-                f"Argument incompatible pour {parent.name} : "
-                f"{actual_type}, attendu : {expected_type}"
-            )
 
         parent.arguments[index] = expression
 
@@ -903,10 +943,11 @@ def attach_expression(state, expression, registry):
         if any(arg is None for arg in parent.arguments):
             return state
 
-        # Oui : construire l'expression complète.
+        # Oui : construire l'expression complète, puis poursuivre la
+        # remontée avec son type réel (inféré en tête de boucle).
         state.stack.pop()
 
-        if parent.name == "__apply__":
+        if parent.name == APPLY_NAME:
             expression = ApplyExpr(
                 function=parent.arguments[0],
                 arguments=tuple(parent.arguments[1:]),
@@ -917,27 +958,6 @@ def attach_expression(state, expression, registry):
                 arguments=tuple(parent.arguments),
                 return_type=parent.return_type,
             )
-
-        # Vérifier son type réel.
-        if not isFunction:
-            actual_type = infer_expression_type(expression, registry)
-
-        # On continue la remontée.
-        if state.stack:
-            continue
-
-        if (isinstance(actual_type, FunctionType)):
-            actual_type = actual_type.return_type
-
-        if not is_compatible(actual_type, state.expected_type):
-            raise TypeError(
-                f"Résultat incompatible : {actual_type}, "
-                f"attendu : {state.expected_type}"
-            )
-
-        state.result = expression
-        state.finished = True
-        return state
 
 
 def select_symbol(state, symbol, registry):
@@ -1004,21 +1024,30 @@ def get_compatible_function_references(expected_type, registry, depth=0, max_dep
     return candidates
 
 
-def create_pending_application(function_expression, function_type):
+def check_applicable(function_type):
+    """Vérifie qu'une expression peut être appliquée à des arguments."""
     if not isinstance(function_type, FunctionType):
-        raise TypeError("Le résultat n'est pas une fonction.")
+        raise TypeError(
+            "L'expression appliquée n'a pas de signature de fonction "
+            f"connue : {function_type!r}"
+        )
 
     if function_type.variadic:
         raise NotImplementedError(
             "Les applications variadiques ne sont pas encore gérées."
         )
 
+
+def create_pending_application(function_expression, function_type, depth=0):
+    """Crée l'application implicite d'une fonction déjà construite."""
+    check_applicable(function_type)
+
     return PendingExpression(
-        name="__apply__",
+        name=APPLY_NAME,
         arguments=[function_expression] + [None] * function_type.arity,
         parameter_types=(Any,) + function_type.parameter_types,
         return_type=function_type.return_type,
-        depth=0,
+        depth=depth,
     )
 
 
