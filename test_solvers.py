@@ -80,7 +80,6 @@ def test_types() -> None:
     registry = load_registry()
     errors: dict = {}
     tasks = hodelTasks()
-    ignoredTasks: set = {"a64e4611", }
     count: int = 0
 
     for task in tasks:
@@ -100,10 +99,7 @@ def test_types() -> None:
 
             count += 1
         except (TypeError, AssertionError) as exc:
-            if (task in ignoredTasks):
-                print(f"{task} task ignored")
-            else:
-                errors[task] = f"{task}: {type(exc).__name__}: {exc}"
+            errors[task] = f"{task}: {type(exc).__name__}: {exc}"
 
     print(f"{count}/{len(tasks)} passed tasks")
 
