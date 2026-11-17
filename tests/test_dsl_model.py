@@ -129,7 +129,8 @@ def processTask(engine, model, id_, data, depth: int = 10, debug: bool = True):
             cost = math.inf
 
         if (program and not np.isinf(cost).any() and cost < candidates[0][1].sum(axis = 0, skipna = False)["Total cost"]
-            and not program in [c[0] for c in candidates]):
+            and not program in [c[0] for c in candidates]
+            and not cost in [c[1].sum(axis = 0, skipna = False)["Total cost"] for c in candidates]):
             candidates.append((program, dfTrain, dfTest, programOutputs))
             candidates = sorted(candidates, key = lambda x: (tuple(-x[1].sum(axis = 0, skipna = False)), -len(x[0]), x[0]))
             count = 0
