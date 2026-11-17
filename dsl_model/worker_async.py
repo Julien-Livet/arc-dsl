@@ -143,7 +143,8 @@ class Worker:
             
         if (self.program):
             if (self.cost < self.candidates[0][1].sum(axis = 0, skipna = False)["Total cost"]
-                and not self.program in [c[0] for c in self.candidates]):
+                and not self.program in [c[0] for c in self.candidates]
+                and not self.cost in [c[1].sum(axis = 0, skipna = False)["Total cost"] for c in self.candidates]):
                 self.computeGraphs = True
                 self.iters_since_improvement = 0
 
