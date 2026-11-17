@@ -131,6 +131,7 @@ if __name__ == "__main__":
     trajectoryLen: int = 0
     currentProgram: str = "I"
     trajectoryIndex: int = 1
+    cost: float = math.inf
 
     if (args.num_workers == 1):
         console = Console()
@@ -239,7 +240,14 @@ if __name__ == "__main__":
             if (len(currentWorker.costs)):
                 trajectoryIndex: int = trajectoryLen - len(currentWorker.costs) + 1
 
-            currentProgram = currentWorker.program if currentWorker.program else currentProgram
+            if (currentWorker.program):
+                currentProgram = currentWorker.program
+
+                try:
+                    cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
+                except:
+                    cost = math.inf
+
             targetProgram: str = currentWorker.targetProgram
 
             progress.update(
@@ -250,11 +258,6 @@ if __name__ == "__main__":
             )
 
             if (len(currentWorker.costs)):
-                try:
-                    cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
-                except:
-                    cost = math.inf
-        
                 goal_table = make_goal_table(
                     (cost, currentProgram),
                     currentWorker.costs[0],
