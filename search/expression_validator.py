@@ -569,8 +569,11 @@ def infer_expression_type(expression, registry):
                 # Préserver le type des éléments déjà présents dans le conteneur.
                 return container_type
 
-            if container_type in (FrozenSet, frozenset):
+            if is_compatible(container_type, FrozenSet) or is_compatible(container_type, frozenset):
                 return FrozenSet[value_type]
+
+            if is_compatible(container_type, Tuple) or is_compatible(container_type, tuple):
+                return tuple[value_type, ...]
 
             raise TypeError(
                 f"Impossible d'inférer le type de insert pour {container_type!r}"
