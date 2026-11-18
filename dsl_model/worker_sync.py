@@ -151,8 +151,6 @@ class Worker:
 
                 while (len(self.costs) and self.cost <= self.costs[0][0]):
                     self.costs.pop(0)
-            elif (not math.isinf(self.cost) and not self.program in self.testedPrograms):
-                self.iters_since_improvement = 0 #TODO: to remove?
 
             if (not self.program in self.testedPrograms):
                 self.testedPrograms.add(self.program)
