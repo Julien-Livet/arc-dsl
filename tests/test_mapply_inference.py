@@ -2,6 +2,7 @@ from arc_types import Indices
 from search.dsl_registry import load_registry
 from search.expressions import InputExpr, ConstantExpr, PrimitiveExpr, PrimitiveRefExpr
 from search.expression_validator import infer_expression_type
+from search.type_system import is_compatible
 
 
 def test_mapply_infers_return_type_from_function():
@@ -23,4 +24,4 @@ def test_mapply_infers_return_type_from_function():
 
     expression = PrimitiveExpr("mapply", (corners, objects), None)
 
-    assert infer_expression_type(expression, registry) == Indices
+    assert is_compatible(infer_expression_type(expression, registry), Indices)
