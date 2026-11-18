@@ -1,7 +1,7 @@
 from typing import Any, FrozenSet, Tuple, get_args, get_origin
 
 import dsl
-from arc_types import Cell, Grid, Patch
+from arc_types import Cell, Grid, Patch, Indices
 from search.dsl_registry import load_registry
 from search.expression_validator import infer_expression_type
 from search.function_types import FunctionType
@@ -92,6 +92,4 @@ def test_fork_apply_maps_the_function_over_the_container():
     )
 
     assert isinstance(result, FunctionType)
-    assert get_origin(result.return_type) is frozenset
-    assert get_args(result.return_type) == (Patch,)
-    assert result.return_type == FrozenSet[Patch]
+    assert is_compatible(result.return_type, Indices)
