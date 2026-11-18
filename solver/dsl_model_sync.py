@@ -99,9 +99,6 @@ def parse_args():
 
     return args
 
-def truncatedProgram(program: str) -> str:
-    return program if len(program) < 16 else program[:16] + "..."
-
 if __name__ == "__main__":
     args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -144,6 +141,8 @@ if __name__ == "__main__":
             TimeRemainingColumn(),
             TextColumn("loss={task.fields[loss]}"),
             TextColumn("trajectory={task.fields[trajectory]}"),
+            TextColumn("iters={task.fields[iters]}"),
+            TextColumn("count={task.fields[count]}"),
             console=console,
             auto_refresh=False,
         )
@@ -152,6 +151,8 @@ if __name__ == "__main__":
             total=n,
             loss="N/A",
             trajectory="N/A",
+            iters="N/A",
+            count="N/A",
         )
         live = None
         goal_table = Table(title="Goal")
@@ -255,6 +256,8 @@ if __name__ == "__main__":
                 advance=0,
                 loss=f"{loss_value:.3e}",
                 trajectory=f"{trajectoryIndex}/{trajectoryLen}",
+                iters=currentWorker.iters_since_improvement,
+                count=currentWorker.count,
             )
 
             if (len(currentWorker.costs)):
