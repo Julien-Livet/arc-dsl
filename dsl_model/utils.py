@@ -12,10 +12,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Data
-from typing import List, Tuple
 import sys
 
-Grid = Tuple[Tuple[int]]
+Grid = tuple[tuple[int, ...]]
 M: int = 50
 
 scoreColumns = ["Total cost", "Grid size cost", "Bounding box cost", "Pixel overlap cost", "Value cost"]
@@ -24,8 +23,8 @@ minTemperature: float = 0.1
 maxTemperature: float = 5.0
 minAlpha: float = 0.1
 
-MAX_ITERATIONS_PER_TARGET: int = 500000
-PLATEAU_PATIENCE: int = 50000
+MAX_ITERATIONS_PER_TARGET: int = 100000
+PLATEAU_PATIENCE: int = 10000
 
 def getDslPrimitives() -> dict[str, dict]:
     with open("../arc-dsl/dsl.py", "r") as f:
@@ -70,8 +69,8 @@ def load_module(name: str, path: str):
     
     return module
 
-def dslVocabulary() -> dict[str, Tuple[type, object]]:
-    vocabulary: dict[str, Tuple[type, object]] = {}
+def dslVocabulary() -> dict[str, tuple[type, object]]:
+    vocabulary: dict[str, tuple[type, object]] = {}
 
     arc_types_module = load_module("arc_types", "../arc-dsl/arc_types.py")
 
@@ -111,7 +110,7 @@ def dslVocabulary() -> dict[str, Tuple[type, object]]:
         exec(code, namespace)
         vocabulary[k] = (namespace["t"], namespace[k])
 
-    vocabulary["I"] = (Tuple[Tuple[int]], None)
+    vocabulary["I"] = (Grid, None)
 
     return vocabulary
 
@@ -130,7 +129,7 @@ class DSLVocab:
     def __len__(self) -> int:
         return len(self.tokens)
 
-    def encode(self, program: str, max_len: int = 128) -> List[int]:
+    def encode(self, program: str, max_len: int = 128) -> list[int]:
         ids: list = [self.BOS]
         known = sorted([t for t in self.tokens if t not in self.SPECIAL],
                        key = len, reverse = True)
@@ -151,7 +150,7 @@ class DSLVocab:
 
         return ids
 
-    def decode(self, ids: List[int]) -> str:
+    def decode(self, ids: list[int]) -> str:
         result: list = []
 
         for i in ids:
@@ -207,7 +206,7 @@ def pad_grid(grid, max_h, max_w, pad_value=0):
 
     return padded, mask
 
-def grids_to_tensors(grids: List[Grid]):
+def grids_to_tensors(grids: list[Grid]):
     """
     grids: List[grid]
 
@@ -243,7 +242,7 @@ def grids_to_tensors(grids: List[Grid]):
 
     return tensors
 
-def arc_pairs_to_tensors(arc_pairs: List[Tuple[Grid, Grid]]):
+def arc_pairs_to_tensors(arc_pairs: list[tuple[Grid, Grid]]):
     """
     arc_pairs: List[(input_grid, output_grid)]
 
