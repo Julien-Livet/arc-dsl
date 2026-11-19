@@ -39,10 +39,10 @@ def loadFolder(folder: str) -> dict[str, str]:
 
 def size_cost(x: np.ndarray, y: np.ndarray) -> float:
     if (not x.shape):
-        return np.linalg.norm(np.array(y.shape, dtype = float))
+        return np.linalg.norm(np.array(y.shape, dtype = float)) ** 2
 
     try:
-        return np.linalg.norm(np.array(x.shape, dtype = float) - np.array(y.shape, dtype = float))
+        return np.linalg.norm(np.array(x.shape, dtype = float) - np.array(y.shape, dtype = float)) ** 2
     except Exception:
         return float("inf")
 
@@ -87,12 +87,12 @@ def bounding_box_cost(x: np.ndarray, y: np.ndarray) -> float:
         return 0.0
 
     if (box_x is None or box_y is None):
-        return 1.0
+        return 100.0
 
     diff = np.linalg.norm(np.array(box_x, dtype = float) - np.array(box_y, dtype = float))
     norm = np.linalg.norm(np.array(x.shape, dtype = float) + np.array(y.shape, dtype = float))
 
-    return diff / (norm + 1e-8)
+    return diff / (norm + 1e-8) * 100.0
 
 
 def arc_heuristic(x: np.ndarray, y: np.ndarray) -> float:
