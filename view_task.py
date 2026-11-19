@@ -1,3 +1,4 @@
+import dsl_model.utils as utils
 import json
 from matplotlib import colors
 import matplotlib.pyplot as plt
@@ -154,6 +155,55 @@ def view(folder: str, task: str):
 
     show("Train", train)
     show("Test", test)
+
+def init_cost_plot(ax, scores, pair_index):
+    values = scores[utils.scoreColumns].to_numpy(dtype=float)
+
+    y = np.arange(len(utils.scoreColumns))
+
+    bars = ax.barh(y, values)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(utils.scoreColumns, fontsize=8)
+    ax.invert_yaxis()
+
+    ax.set_title(f'Pair {pair_index}', fontsize=10)
+
+    ax.grid(axis='x', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+
+    # Valeurs numériques
+    texts = []
+
+    xmax = max(1.0, np.max(np.abs(values)))
+    ax.set_xlim(0, xmax * 1.2)
+
+    for i, value in enumerate(values):
+        t = ax.text(
+            value,
+            i,
+            f' {value:.3g}',
+            va='center',
+            fontsize=8
+        )
+        texts.append(t)
+
+    return bars, texts
+
+
+def update_cost_plot(ax, bars, texts, scores):
+    values = scores[utils.scoreColumns].to_numpy(dtype=float)
+
+    xmax = max(1.0, np.max(np.abs(values)))
+
+    for bar, text, value in zip(bars, texts, values):
+
+        bar.set_width(value)
+
+        text.set_position((value, bar.get_y() + bar.get_height() / 2))
+        text.set_text(f' {value:.3g}')
+
+    ax.set_xlim(0, xmax * 1.2)
 
 if (__name__ == "__main__"):
     view(sys.argv[-2], sys.argv[-1])
