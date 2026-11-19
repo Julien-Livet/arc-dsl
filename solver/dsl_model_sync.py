@@ -89,6 +89,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--index",
+        type=int,
+        default=None,
+        help="Ordered index (default: None for all)",
+    )
+
+    parser.add_argument(
         "--update",
         type=int,
         default=10,
@@ -146,6 +153,10 @@ if __name__ == "__main__":
     engine = Engine()
     n = engine.count()
     indexes = engine.orderedIndexes()
+
+    if (args.index is not None):
+        indexes = [indexes[args.index]]
+
     dslModel = DSLModel(len(VOCAB.token2id), d_model=256, device = device)
     model = dslModel.to(device)
 
