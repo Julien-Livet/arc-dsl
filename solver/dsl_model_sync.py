@@ -114,27 +114,21 @@ def get_signature(inputs, outputs):
         for l, r in zip(inputs, outputs)
     )
 
-
-def rebuild_plot(fig, inputs, outputs):
+def rebuild_plot(fig, inputs, outputs, dfTrain):
     fig.clear()
 
     n = len(inputs)
-
-    axs = fig.subplots(
-        n,
-        2,
-        squeeze=False
-    )
-
-    plots = []
+    axs = fig.subplots(n, 3, squeeze=False)
+    plots: list = []
 
     for k, (l, r) in enumerate(zip(inputs, outputs)):
         p1 = view_task.init_plot(axs[k][0], l)
         p2 = view_task.init_plot(axs[k][1], r)
+        p3 = view_task.init_cost_plot(axs[k][2], dfTrain.iloc[k], k)
 
-        plots.append((p1, p2))
+        plots.append((p1, p2, p3))
 
-    return plots
+    return axs, plots
 
 if __name__ == "__main__":
     args = parse_args()
@@ -173,12 +167,14 @@ if __name__ == "__main__":
         fig, axs = plt.subplots(1, 2)
         fig.suptitle('Current vs target program outputs')
 
+        fig.canvas.manager.set_window_title("Visual model training via ARC grids")
         mng = plt.get_current_fig_manager()
         mng.window.showMaximized()
         plt.show(block=False)
 
         plots: list = []
         previous_signature = None
+        axs = None
 
     if (args.num_workers == 1):
         console = Console()
@@ -241,7 +237,7 @@ if __name__ == "__main__":
                             currentProgram = "I"
 
                             if (args.plot):
-                                plots = rebuild_plot(fig, worker.grids, worker.rawOutputs)
+                                axs, plots = rebuild_plot(fig, worker.grids, worker.rawOutputs, worker.candidates[0][1])
                                 previous_signature = signature = get_signature(worker.grids, worker.rawOutputs)
                 else:
                     loop = False
@@ -305,17 +301,22 @@ if __name__ == "__main__":
                         signature = get_signature(currentWorker.programOutputs, currentWorker.rawOutputs)
 
                         if (signature != previous_signature):
-                            plots = rebuild_plot(fig, currentWorker.programOutputs, worker.rawOutputs)
+                            axs, plots = rebuild_plot(fig, currentWorker.programOutputs, worker.rawOutputs, worker.df)
                             previous_signature = signature
 
                         for k, (l, r) in enumerate(zip(currentWorker.programOutputs, worker.rawOutputs)):
                             im1, txt1 = plots[k][0]
                             im2, txt2 = plots[k][1]
+                            bars, texts = plots[k][2]
 
                             view_task.update_plot(im1, txt1, l)
                             view_task.update_plot(im2, txt2, r)
+                            view_task.update_cost_plot(axs[k][2], bars, texts, currentWorker.df.iloc[k])
 
-                        fig.suptitle(f'Current vs target program outputs\n{currentWorker.program}\n{currentWorker.targetProgram}')
+                        fig.suptitle(f'Current vs target program outputs\n'
+                                     f'Current: {cost:.3e} {currentWorker.program}\n'
+                                     f'Next: {currentWorker.costs[0][0]:.3e} {currentWorker.costs[0][1]}\n'
+                                     f'Target: {0.0:.3e} {currentWorker.targetProgram}')
                         fig.canvas.draw_idle()
                         fig.canvas.flush_events()
                         plt.pause(0.01)
