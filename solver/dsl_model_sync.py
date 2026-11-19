@@ -4,6 +4,7 @@ from dsl_model.dsl_model import DSLModel
 import dsl_model.utils as utils
 from dsl_model.worker_sync import Worker
 from dsl_model.utils import VOCAB
+import matplotlib.pyplot as plt
 import math
 import os
 import pandas as pd
@@ -21,6 +22,7 @@ from rich.progress import (
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
+import view_task
 
 def make_goal_table(current, next_program, target):
     table = Table(
@@ -92,6 +94,12 @@ def parse_args():
         help="Name of the model (default: dsl_model.pt)",
     )
 
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Plot grids",
+    )
+
     args = parser.parse_args()
 
     if args.num_workers < 1:
@@ -129,6 +137,18 @@ if __name__ == "__main__":
     currentProgram: str = "I"
     trajectoryIndex: int = 1
     cost: float = math.inf
+
+    if (args.plot and args.num_workers == 1):
+        plt.ion()
+
+        fig, axs = plt.subplots(1, 2)
+        fig.suptitle('Current vs target program outputs')
+
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
+        plt.show(block=False)
+
+        plots: list = []
 
     if (args.num_workers == 1):
         console = Console()
@@ -189,6 +209,17 @@ if __name__ == "__main__":
                         if (args.num_workers == 1):
                             trajectoryLen = len(worker.costs)
                             currentProgram = "I"
+
+                            if (args.plot):
+                                fig.clear()
+                                plots.clear()
+                                axs = fig.subplots(len(worker.rawOutputs), 2, squeeze=False)
+
+                                for k, (l, r) in enumerate(zip(worker.grids, worker.rawOutputs)):
+                                    p1 = view_task.init_plot(axs[k][0], l)
+                                    p2 = view_task.init_plot(axs[k][1], r)
+
+                                    plots.append((p1, p2))
                 else:
                     loop = False
 
@@ -246,6 +277,19 @@ if __name__ == "__main__":
 
                 try:
                     cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
+
+                    if (args.plot):
+                        for k, (l, r) in enumerate(zip(currentWorker.programOutputs, worker.rawOutputs)):
+                            im1, txt1 = plots[k][0]
+                            im2, txt2 = plots[k][1]
+
+                            view_task.update_plot(im1, txt1, l)
+                            view_task.update_plot(im2, txt2, r)
+
+                        fig.suptitle(f'Current vs target program outputs\n{currentWorker.program}\n{currentWorker.targetProgram}')
+                        fig.canvas.draw_idle()
+                        fig.canvas.flush_events()
+                        plt.pause(0.01)
                 except:
                     cost = math.inf
 
@@ -306,5 +350,8 @@ if __name__ == "__main__":
 
     if (args.num_works == 1):
         live.stop()
+
+        plt.ioff()
+        plt.show()
     else:
         process.close()
