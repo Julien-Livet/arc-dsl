@@ -6,6 +6,7 @@ from dsl_model.worker_sync import Worker
 from dsl_model.utils import VOCAB
 import matplotlib.pyplot as plt
 import math
+import numpy as np
 import os
 import pandas as pd
 from rich.console import Console, Group
@@ -107,6 +108,34 @@ def parse_args():
 
     return args
 
+def get_signature(inputs, outputs):
+    return tuple(
+        (np.asarray(l).shape, np.asarray(r).shape)
+        for l, r in zip(inputs, outputs)
+    )
+
+
+def rebuild_plot(fig, inputs, outputs):
+    fig.clear()
+
+    n = len(inputs)
+
+    axs = fig.subplots(
+        n,
+        2,
+        squeeze=False
+    )
+
+    plots = []
+
+    for k, (l, r) in enumerate(zip(inputs, outputs)):
+        p1 = view_task.init_plot(axs[k][0], l)
+        p2 = view_task.init_plot(axs[k][1], r)
+
+        plots.append((p1, p2))
+
+    return plots
+
 if __name__ == "__main__":
     args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -149,6 +178,7 @@ if __name__ == "__main__":
         plt.show(block=False)
 
         plots: list = []
+        previous_signature = None
 
     if (args.num_workers == 1):
         console = Console()
@@ -211,15 +241,8 @@ if __name__ == "__main__":
                             currentProgram = "I"
 
                             if (args.plot):
-                                fig.clear()
-                                plots.clear()
-                                axs = fig.subplots(len(worker.rawOutputs), 2, squeeze=False)
-
-                                for k, (l, r) in enumerate(zip(worker.grids, worker.rawOutputs)):
-                                    p1 = view_task.init_plot(axs[k][0], l)
-                                    p2 = view_task.init_plot(axs[k][1], r)
-
-                                    plots.append((p1, p2))
+                                plots = rebuild_plot(fig, worker.grids, worker.rawOutputs)
+                                previous_signature = signature = get_signature(worker.grids, worker.rawOutputs)
                 else:
                     loop = False
 
@@ -279,6 +302,12 @@ if __name__ == "__main__":
                     cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
 
                     if (args.plot):
+                        signature = get_signature(currentWorker.programOutputs, currentWorker.rawOutputs)
+
+                        if (signature != previous_signature):
+                            plots = rebuild_plot(fig, currentWorker.programOutputs, worker.rawOutputs)
+                            previous_signature = signature
+
                         for k, (l, r) in enumerate(zip(currentWorker.programOutputs, worker.rawOutputs)):
                             im1, txt1 = plots[k][0]
                             im2, txt2 = plots[k][1]
