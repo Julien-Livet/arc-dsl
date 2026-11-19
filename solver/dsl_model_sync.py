@@ -89,6 +89,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--update",
+        type=int,
+        default=10,
+        help="Plot update frames (default: 10)",
+    )
+
+    parser.add_argument(
         "--model",
         type=str,
         default="dsl_model.pt",
@@ -102,6 +109,9 @@ def parse_args():
     )
 
     args = parser.parse_args()
+
+    if args.update < 1:
+        parser.error("--update must be >= 1")
 
     if args.num_workers < 1:
         parser.error("--num-workers must be >= 1")
@@ -175,6 +185,7 @@ if __name__ == "__main__":
         plots: list = []
         previous_signature = None
         axs = None
+        plotCount: int = 0
 
     if (args.num_workers == 1):
         console = Console()
@@ -233,6 +244,7 @@ if __name__ == "__main__":
                         worker.init(engine, device, indexes.pop(0))
 
                         if (args.num_workers == 1):
+                            plotCount = 0
                             trajectoryLen = len(worker.costs)
                             currentProgram = "I"
 
@@ -296,32 +308,38 @@ if __name__ == "__main__":
 
                 try:
                     cost = float(currentWorker.df.sum(axis=0, skipna=False)["Total cost"] if isinstance(currentWorker.df, pd.DataFrame) else currentWorker.costs[0][0])
-
-                    if (args.plot):
-                        signature = get_signature(currentWorker.programOutputs, currentWorker.rawOutputs)
-
-                        if (signature != previous_signature):
-                            axs, plots = rebuild_plot(fig, currentWorker.programOutputs, worker.rawOutputs, worker.df)
-                            previous_signature = signature
-
-                        for k, (l, r) in enumerate(zip(currentWorker.programOutputs, worker.rawOutputs)):
-                            im1, txt1 = plots[k][0]
-                            im2, txt2 = plots[k][1]
-                            bars, texts = plots[k][2]
-
-                            view_task.update_plot(im1, txt1, l)
-                            view_task.update_plot(im2, txt2, r)
-                            view_task.update_cost_plot(axs[k][2], bars, texts, currentWorker.df.iloc[k])
-
-                        fig.suptitle(f'Current vs target program outputs\n'
-                                     f'Current: {cost:.3e} {currentWorker.program}\n'
-                                     f'Next: {currentWorker.costs[0][0]:.3e} {currentWorker.costs[0][1]}\n'
-                                     f'Target: {0.0:.3e} {currentWorker.targetProgram}')
-                        fig.canvas.draw_idle()
-                        fig.canvas.flush_events()
-                        plt.pause(0.01)
                 except:
                     cost = math.inf
+
+                if (args.plot):
+                    if (not plotCount % args.update):
+                        try:
+                            signature = get_signature(currentWorker.programOutputs, currentWorker.rawOutputs)
+
+                            if (signature != previous_signature):
+                                axs, plots = rebuild_plot(fig, currentWorker.programOutputs, worker.rawOutputs, worker.df)
+                                previous_signature = signature
+
+                            for k, (l, r) in enumerate(zip(currentWorker.programOutputs, worker.rawOutputs)):
+                                im1, txt1 = plots[k][0]
+                                im2, txt2 = plots[k][1]
+                                bars, texts = plots[k][2]
+
+                                view_task.update_plot(im1, txt1, l)
+                                view_task.update_plot(im2, txt2, r)
+                                view_task.update_cost_plot(axs[k][2], bars, texts, currentWorker.df.iloc[k])
+
+                            fig.suptitle(f'Current vs target program outputs\n'
+                                            f'Current: {cost:.3e} {currentWorker.program}\n'
+                                            f'Next: {currentWorker.costs[0][0]:.3e} {currentWorker.costs[0][1]}\n'
+                                            f'Target: {0.0:.3e} {currentWorker.targetProgram}')
+                            fig.canvas.draw_idle()
+                            fig.canvas.flush_events()
+                            plt.pause(0.01)
+                        except (IndexError, TypeError):
+                            pass
+
+                    plotCount += 1
 
             targetProgram: str = currentWorker.targetProgram
 
