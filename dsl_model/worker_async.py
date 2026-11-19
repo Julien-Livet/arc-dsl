@@ -32,9 +32,8 @@ class Worker:
         self.targetProgram = self.engine.program(j)
         self.trajectory = utils.filterTrajectory(self.engine.trajectory(j), self.targetProgram)
         self.grids = self.engine.grids(j)
-        self.outputs = self.engine.outputs(j)
-
-        pairs = list(zip(self.grids, self.outputs))
+        self.rawOutputs = self.engine.outputs(j)
+        pairs = list(zip(self.grids, self.rawOutputs))
         inputs, outputs, masks = utils.arc_pairs_to_tensors(pairs)
         self.inputs = inputs.to(device)
         self.outputs = outputs.to(device)
