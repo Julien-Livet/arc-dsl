@@ -18,8 +18,16 @@ from solver.dsl_engine import Engine
 import torch
 from typing import Dict, Tuple
 
-modelFilename = "dsl_model.pt"
-device = "cuda" if torch.cuda.is_available() else "cpu"
+d_model: int = None
+modelFilename: str = "dsl_model.pt"
+
+if (d_model is None):
+    d_model = 256
+else:
+    index = modelFilename.rfind(".")
+    modelFilename = modelFilename[:index] + f"_{d_model}" + modelFilename[index:]
+
+device: str = "cuda" if torch.cuda.is_available() else "cpu"
 engine = Engine()
 
 MAX_COUNT = 1000
@@ -149,7 +157,7 @@ def processTask(engine, model, id_, data, depth: int = 10, debug: bool = True):
     return candidate
 
 def passTask(folder: str, task: str, debug: bool = False, depth: int = 6):
-    dslModel = DSLModel(len(VOCAB.token2id), d_model = 256, device = device)
+    dslModel = DSLModel(len(VOCAB.token2id), d_model = d_model, device = device)
     model = dslModel.to(device)
     
     ok: bool = True
@@ -216,7 +224,7 @@ def test_hodel_tasks():
         print(f"Duration for {k} step{'s' if k > 1 else ''} of DSL ({len(v)} tasks): {time.time() - t1} s")
 
 def passTasks(tasks, debug: bool = True):
-    dslModel = DSLModel(len(VOCAB.token2id), d_model = 256, device = device)
+    dslModel = DSLModel(len(VOCAB.token2id), d_model = d_model, device = device)
     model = dslModel.to(device)
     checkpoint = torch.load(modelFilename, map_location = device)
     model.load_state_dict(checkpoint["model_state"])
