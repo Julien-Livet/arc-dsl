@@ -13,6 +13,8 @@ from solver.dsl_engine import Engine
 import tests.test_dsl_model as test_dsl_model
 import torch
 
+args = None
+
 def processTask(engine, model, id_, data, depth: int = 6):
     inputsTest: list = [(ex["input"]) for ex in data["test"]]
     trainPairs: list = [(ex["input"], ex["output"]) for ex in data["train"]]
@@ -101,9 +103,11 @@ def processTask(engine, model, id_, data, depth: int = 6):
     return candidate
 
 def processTasks(tasks):
-    dslModel = DSLModel(len(VOCAB.token2id), d_model = 256, device = test_dsl_model.device)
+    global args
+
+    dslModel = DSLModel(len(VOCAB.token2id), d_model = args.d_model, device = test_dsl_model.device)
     model = dslModel.to(test_dsl_model.device)
-    checkpoint = torch.load(test_dsl_model.modelFilename, map_location = test_dsl_model.device)
+    checkpoint = torch.load(args.model, map_location = test_dsl_model.device)
     model.load_state_dict(checkpoint["model_state"])
     engine = Engine()
     results: dict = {}
@@ -132,7 +136,27 @@ def parse_args():
         help="Folder name (default: evaluation, can be training)",
     )
 
+    parser.add_argument(
+        "--d_model",
+        type=int,
+        default=None,
+        help="d_model (default: None for utils.d_model)",
+    )
+
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="dsl_model.pt",
+        help="Name of the model (default: dsl_model.pt)",
+    )
+
     args = parser.parse_args()
+
+    if args.d_model == None:
+        args.d_model = utils.d_model
+
+    if args.d_model < 1:
+        parser.error("--d_model must be >= 1")
 
     return args
 
