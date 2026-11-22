@@ -103,6 +103,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--d_model",
+        type=int,
+        default=None,
+        help="d_model (default: None for utils.d_model)",
+    )
+
+    parser.add_argument(
         "--model",
         type=str,
         default="dsl_model.pt",
@@ -122,6 +129,15 @@ def parse_args():
 
     if args.num_workers < 1:
         parser.error("--num-workers must be >= 1")
+
+    if args.d_model == None:
+        args.d_model = utils.d_model
+    else:
+        index = args.model.rfind(".")
+        args.model = args.model[:index] + f"_{args.d_model}" + args.model[index:]
+
+    if args.d_model < 1:
+        parser.error("--d_model must be >= 1")
 
     return args
 
@@ -157,7 +173,7 @@ if __name__ == "__main__":
     if (args.index is not None):
         indexes = [indexes[args.index]]
 
-    dslModel = DSLModel(len(VOCAB.token2id), d_model=256, device = device)
+    dslModel = DSLModel(len(VOCAB.token2id), d_model=args.d_model, device = device)
     model = dslModel.to(device)
 
     if (os.path.exists(args.model)):
