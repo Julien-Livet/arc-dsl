@@ -22,8 +22,9 @@ scoreColumns = ["Total cost", "Grid size cost", "Bounding box cost", "Pixel over
 minTemperature: float = 0.1
 maxTemperature: float = 5.0
 minAlpha: float = 0.1
+d_model: int = 256
 
-MAX_ITERATIONS_PER_TARGET: int = 100000
+MAX_ITERATIONS_PER_TARGET: int = 50000
 PLATEAU_PATIENCE: int = 10000
 
 def getDslPrimitives() -> dict[str, dict]:
@@ -832,7 +833,7 @@ def worker_process(engine, input_queue, output_queue, worker_id, model_version, 
     # Un seul actor_model réutilisé
     actor_model = DSLModel(
         len(VOCAB.token2id),
-        d_model=256,
+        d_model=d_model,
         device="cuda",
     ).to("cuda")
     torch.set_flush_denormal(True)
