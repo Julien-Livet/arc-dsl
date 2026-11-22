@@ -108,56 +108,56 @@ def equality(
 
 
 def contained(
-    value: Any,
-    container: Container
+    value: ItemT,
+    container: CollT[ItemT]
 ) -> Boolean:
     """ element of """
     return value in container
 
 
 def combine(
-    a: Container,
-    b: Container
-) -> Container:
+    a: CollT[ItemT],
+    b: OtherCollT[ItemT]
+) -> CollT[ItemT]:
     """ union """
     return type(a)((*a, *b))
 
 
 def intersection(
-    a: FrozenSet,
-    b: FrozenSet
-) -> FrozenSet:
+    a: FrozenSet[ItemT],
+    b: FrozenSet[ItemT]
+) -> FrozenSet[ItemT]:
     """ returns the intersection of two containers """
     return a & b
 
 
 def difference(
-    a: FrozenSet,
-    b: FrozenSet
-) -> FrozenSet:
+    a: FrozenSet[ItemT],
+    b: FrozenSet[ItemT]
+) -> FrozenSet[ItemT]:
     """ set difference """
     return type(a)(e for e in a if e not in b)
 
 
 def dedupe(
-    tup: Tuple
-) -> Tuple:
+    tup: Tuple[ItemT, ...]
+) -> Tuple[ItemT, ...]:
     """ remove duplicates """
     return tuple(e for i, e in enumerate(tup) if tup.index(e) == i)
 
 
 def order(
-    container: Container,
+    container: CollT[ItemT],
     compfunc: Callable
-) -> Tuple:
+) -> Tuple[ItemT, ...]:
     """ order container by custom key """
     return tuple(sorted(container, key=compfunc))
 
 
 def repeat(
-    item: Any,
+    item: ItemT,
     num: Integer
-) -> Tuple:
+) -> Tuple[ItemT, ...]:
     """ repetition of item within vector """
     return tuple(item for i in range(num))
 
@@ -178,8 +178,8 @@ def size(
 
 
 def merge(
-    containers: ContainerContainer
-) -> Container:
+    containers: CollT[InnerCollT[ItemT]]
+) -> CollT[ItemT]:
     """ merging """
     return type(containers)(e for c in containers for e in c)
 
@@ -215,38 +215,38 @@ def valmin(
 
 
 def argmax(
-    container: Container,
+    container: CollT[ItemT],
     compfunc: Callable
-) -> Any:
+) -> ItemT:
     """ largest item by custom order """
     return max(container, key=compfunc)
 
 
 def argmin(
-    container: Container,
+    container: CollT[ItemT],
     compfunc: Callable
-) -> Any:
+) -> ItemT:
     """ smallest item by custom order """
     return min(container, key=compfunc)
 
 
 def mostcommon(
-    container: Container
-) -> Any:
+    container: CollT[ItemT]
+) -> ItemT:
     """ most common item """
     return max(set(container), key=container.count)
 
 
 def leastcommon(
-    container: Container
-) -> Any:
+    container: CollT[ItemT]
+) -> ItemT:
     """ least common item """
     return min(set(container), key=container.count)
 
 
 def initset(
-    value: Any
-) -> FrozenSet:
+    value: ItemT
+) -> FrozenSet[ItemT]:
     """ initialize container """
     return frozenset({value})
 
@@ -327,9 +327,9 @@ def tojvec(
 
 
 def sfilter(
-    container: Container,
+    container: CollT[ItemT],
     condition: Callable
-) -> Container:
+) -> CollT[ItemT]:
     """ keep elements in container that satisfy condition """
     return type(container)(e for e in container if condition(e))
 
@@ -343,54 +343,54 @@ def mfilter(
 
 
 def extract(
-    container: Container,
+    container: CollT[ItemT],
     condition: Callable
-) -> Any:
+) -> ItemT:
     """ first element of container that satisfies condition """
     return next(e for e in container if condition(e))
 
 
 def totuple(
-    container: FrozenSet
-) -> Tuple:
+    container: FrozenSet[ItemT]
+) -> Tuple[ItemT, ...]:
     """ conversion to tuple """
     return tuple(container)
 
 
 def first(
-    container: Container
-) -> Any:
+    container: CollT[ItemT]
+) -> ItemT:
     """ first item of container """
     return next(iter(container))
 
 
 def last(
-    container: Container
-) -> Any:
+    container: CollT[ItemT]
+) -> ItemT:
     """ last item of container """
     return max(enumerate(container))[1]
 
 
 def insert(
-    value: Any,
-    container: FrozenSet
-) -> FrozenSet:
+    value: ItemT,
+    container: FrozenSet[ItemT]
+) -> FrozenSet[ItemT]:
     """ insert item into container """
     return container.union(frozenset({value}))
 
 
 def remove(
-    value: Any,
-    container: Container
-) -> Container:
+    value: ItemT,
+    container: CollT[ItemT]
+) -> CollT[ItemT]:
     """ remove item from container """
     return type(container)(e for e in container if e != value)
 
 
 def other(
-    container: Container,
-    value: Any
-) -> Any:
+    container: CollT[ItemT],
+    value: ItemT
+) -> ItemT:
     """ other value in the container """
     return first(remove(value, container))
 
@@ -405,9 +405,9 @@ def interval(
 
 
 def astuple(
-    a: Any,
-    b: Any
-) -> Tuple[Any, Any]:
+    a: ItemT,
+    b: OtherItemT
+) -> Tuple[ItemT, OtherItemT]:
     """ constructs a tuple """
     return (a, b)
 
@@ -631,9 +631,9 @@ def colorfilter(
 
 
 def sizefilter(
-    container: Container,
+    container: CollT[ItemT],
     n: Integer
-) -> FrozenSet:
+) -> FrozenSet[ItemT]:
     """ filter items by size """
     return frozenset(item for item in container if len(item) == n)
 

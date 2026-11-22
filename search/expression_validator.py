@@ -21,6 +21,7 @@ from search.function_inference import (
     infer_branch,
 )
 from search.type_system import is_compatible, get_parameters, get_return_type, _is_union
+from search.generics import infer_generic_call, is_generic
 
 
 FUNCTION_COMBINATORS = {
@@ -352,44 +353,19 @@ def infer_expression_type(expression, registry):
             for argument in expression.arguments
         ]
 
-        if expression.name in {"first", "last"}:
-            (container_type,) = actual_types
+        # Primitive à signature générique : les arguments doivent satisfaire
+        # ensemble la signature, et le résultat en découle.
+        signature = primitive_info.get("generic_signature")
 
-            if _is_union(container_type):
-                element_types = []
+        if signature is not None and expression.name not in FUNCTION_COMBINATORS:
+            _check_plain_arguments(
+                expression.name,
+                parameters,
+                signature,
+                actual_types,
+            )
 
-                for option in get_args(container_type):
-                    option_args = get_args(option)
-
-                    if option_args:
-                        element_type = (
-                            option_args[-1]
-                            if expression.name == "last"
-                            else option_args[0]
-                        )
-                        if element_type not in element_types:
-                            element_types.append(element_type)
-
-                if element_types:
-                    return (
-                        element_types[0]
-                        if len(element_types) == 1
-                        else Union[tuple(element_types)]
-                    )
-
-            if container_type in (FrozenSet, frozenset):
-                return Any
-
-            container_args = get_args(container_type)
-
-            if container_args:
-                if len(container_args) == 2 and container_args[1] is Ellipsis:
-                    return container_args[0]
-
-                if expression.name == "first":
-                    return container_args[0]
-
-                return container_args[-1]
+            return infer_generic_call(expression.name, signature, actual_types)
 
         if expression.name in {"canvas", }:
             return Grid
@@ -412,36 +388,6 @@ def infer_expression_type(expression, registry):
 
             if is_compatible(actual_type, expected_type) or is_compatible(expected_type, actual_type):
                 return actual_type
-
-        if expression.name == "merge":
-            (containers_type,) = actual_types
-
-            container_args = get_args(containers_type)
-            if not container_args:
-                return Any
-
-            inner_container_type = container_args[0]
-            inner_args = get_args(inner_container_type)
-
-            if inner_args:
-                return inner_container_type
-
-            return inner_container_type
-
-        if expression.name == "sizefilter":
-            container_type, size_type = actual_types
-
-            return container_type
-
-        if expression.name == "sfilter":
-            container_type, condition_type = actual_types
-
-            if not isinstance(condition_type, FunctionType):
-                raise TypeError(
-                    "sfilter attend une fonction de condition connue."
-                )
-
-            return container_type
 
         if expression.name in FUNCTION_COMBINATORS:
             result = _infer_function_combinator(
@@ -508,27 +454,6 @@ def infer_expression_type(expression, registry):
                     )
                     return FrozenSet[return_type]
 
-        if expression.name == "order":
-            container_type = actual_types[0]
-            container_args = get_args(container_type)
-            container_origin = get_origin(container_type)
-
-            if container_args:
-                if container_origin is frozenset:
-                    return Tuple[container_args[0], ...]
-                if container_origin is tuple:
-                    return container_type
-
-        if expression.name == "merge":
-            container_args = get_args(actual_types[0])
-
-            if container_args:
-                return container_args[0]
-
-        if expression.name == "astuple":
-            a_type, b_type = actual_types
-            return Tuple[a_type, b_type]
-
         if expression.name == "pair":
             # pair(a, b) vaut tuple(zip(a, b)) : un tuple de couples
             # d'éléments, et non le couple des deux conteneurs.
@@ -556,30 +481,7 @@ def infer_expression_type(expression, registry):
 
             return FrozenSet[return_type]
 
-        if expression.name == "remove":
-            value_type, container_type = actual_types
-            return container_type
-
-        if expression.name == "insert":
-            value_type, container_type = actual_types
-
-            origin = get_origin(container_type)
-
-            if origin is frozenset:
-                # Préserver le type des éléments déjà présents dans le conteneur.
-                return container_type
-
-            if is_compatible(container_type, FrozenSet) or is_compatible(container_type, frozenset):
-                return FrozenSet[value_type]
-
-            if is_compatible(container_type, Tuple) or is_compatible(container_type, tuple):
-                return tuple[value_type, ...]
-
-            raise TypeError(
-                f"Impossible d'inférer le type de insert pour {container_type!r}"
-            )
-
-        if expression.name in {"argmin", "argmax", "valmin", "valmax"}:
+        if expression.name in {"valmin", "valmax"}:
             container_type, key_function = actual_types
 
             if not isinstance(key_function, FunctionType):
@@ -604,13 +506,6 @@ def infer_expression_type(expression, registry):
             if not element_types:
                 element_types.append(Any)
 
-            if expression.name in {"argmin", "argmax"}:
-                return (
-                    element_types[0]
-                    if len(element_types) == 1
-                    else Union[tuple(element_types)]
-                )
-
             return key_function.return_type
 
         for actual_type, parameter in zip(actual_types, parameters):
@@ -632,9 +527,6 @@ def infer_expression_type(expression, registry):
                     f"Argument {parameter['name']} de {expression.name} : "
                     f"type attendu {expected_type}, reçu {actual_type}"
                 )
-
-        if expression.name == "difference" or expression.name == "intersection":
-            return actual_types[0]
 
         if expression.name in ("double", "halve") and len(actual_types) == 1:
             argument_type = actual_types[0]
@@ -689,6 +581,33 @@ def infer_expression_type(expression, registry):
     raise TypeError(
         f"Type d'expression non pris en charge : {type(expression).__name__}"
     )
+
+
+def _check_plain_arguments(name, parameters, signature, actual_types):
+    """Contrôle les arguments d'une primitive générique hors variables de type."""
+    for actual_type, parameter, pattern in zip(
+        actual_types,
+        parameters,
+        signature.parameter_types,
+    ):
+        if is_generic(pattern):
+            continue
+
+        expected_type = parameter["type"]
+
+        if expected_type is Callable:
+            if not isinstance(actual_type, FunctionType):
+                raise TypeError(
+                    f"Argument {parameter['name']} de {name} "
+                    "doit être une fonction de signature connue."
+                )
+            continue
+
+        if not is_compatible(actual_type, expected_type):
+            raise TypeError(
+                f"Argument {parameter['name']} de {name} : "
+                f"type attendu {expected_type}, reçu {actual_type}"
+            )
 
 
 def _container_element_type(container_type):

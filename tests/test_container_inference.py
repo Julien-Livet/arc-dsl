@@ -1,7 +1,7 @@
 from typing import Any, FrozenSet, Tuple, get_args, get_origin
 
 import dsl
-from arc_types import Cell, Grid, Patch, Indices
+from arc_types import Cell, Grid, Patch, Indices, Object
 from search.dsl_registry import load_registry
 from search.expression_validator import infer_expression_type
 from search.function_types import FunctionType
@@ -38,7 +38,25 @@ def test_pair_is_a_tuple_of_element_pairs():
 def test_pair_of_unknown_containers_is_a_tuple_of_unknown_pairs():
     registry = load_registry()
 
-    # totuple retourne un Tuple non paramétré : les éléments sont inconnus.
+    # product retourne un FrozenSet non paramétré : les éléments sont
+    # inconnus, et totuple n'en apprend rien.
+    result = infer(
+        [
+            "x1 = palette(I)",
+            "x2 = totuple(product(x1, x1))",
+            "O = pair(x2, x2)",
+            "return O",
+        ],
+        registry,
+    )
+
+    assert result == Tuple[Tuple[Any, Any], ...]
+
+
+def test_pair_of_totuple_keeps_the_element_types():
+    registry = load_registry()
+
+    # totuple conserve le type des éléments du frozenset.
     result = infer(
         [
             "x1 = totuple(objects(I, T, T, T))",
@@ -48,7 +66,7 @@ def test_pair_of_unknown_containers_is_a_tuple_of_unknown_pairs():
         registry,
     )
 
-    assert result == Tuple[Tuple[Any, Any], ...]
+    assert result == Tuple[Tuple[Object, Object], ...]
 
 
 def test_paint_accepts_a_tuple_of_cells():
