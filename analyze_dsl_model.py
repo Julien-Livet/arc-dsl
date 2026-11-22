@@ -17,6 +17,7 @@ import torch.nn.functional as F
 
 from dsl_model.dsl_model import DSLModel
 from dsl_model.utils import encode_program_tokens, VOCAB
+import dsl_model.utils as utils
 
 from scipy.spatial.distance import cdist, pdist, squareform
 
@@ -32,12 +33,12 @@ try:
 except ImportError:
     HAS_UMAP = False
 
-def load_trained_model(path: str, device: str = "cpu") -> DSLModel:
+def load_trained_model(path: str, device: str = "cpu", d_model: int = 256) -> DSLModel:
     ckpt = torch.load(path, map_location=device)
 
     model = DSLModel(
         vocab_size=ckpt.get("vocab_size", len(VOCAB.token2id)),
-        d_model=ckpt.get("d_model", 256),
+        d_model=ckpt.get("d_model", d_model),
         device=device,
     ).to(device)
 
@@ -517,9 +518,25 @@ def main():
     ap.add_argument("--save",    default="")
     ap.add_argument("--loc",     default="upper left")
     ap.add_argument("--distance",default="",help="Distance threshold for grouping programs by proximity [knn, near, float]")
+    ap.add_argument("--d_model", type=int, default=None, help="d_model (default: None for utils.d_model)")
+
     args = ap.parse_args()
 
-    model = load_trained_model(args.model, args.device)
+    save: str = args.save or f"embeddings_{args.level}_{args.method}_{args.dataset.replace('.txt', '')}"
+    legendFilename: str = f"legend_{args.level}_{args.method}_{args.dataset.replace('.txt', '')}"
+
+    if args.d_model == None:
+        args.d_model = utils.d_model
+    else:
+        save += f"_{args.d_model}"
+        legendFilename += f"_{args.d_model}"
+
+    legendFilename += ".md"
+
+    if args.d_model < 1:
+        ap.error("--d_model must be >= 1")
+
+    model = load_trained_model(args.model, args.device, args.d_model)
 
     if args.level == "program":
         with open(args.dataset) as f:
@@ -588,8 +605,8 @@ def main():
 
             for i, group_id in enumerate(labels):
                 groups[group_id].append(programs[i])
-                
-            with open(f"legend_{args.level}_{args.method}_{args.dataset.replace('.txt', '')}.md", "w", encoding="utf-8") as f:
+
+            with open(legendFilename, "w", encoding="utf-8") as f:
                 f.write("# Latent Groups of Latent Proximity\n\n")
                 f.write(f"Distance : `{threshold}`\n\n")
 
@@ -606,8 +623,6 @@ def main():
 
     cohesion_report(emb, meta["root"])
 
-    save = args.save or f"embeddings_{args.level}_{args.method}_{args.dataset.replace('.txt', '')}"
-
     if args.type == "2d":
         save += ".png"
         coords = reduce_dim(emb, args.method)
@@ -621,4 +636,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
