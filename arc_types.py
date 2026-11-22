@@ -1,4 +1,3 @@
-from dataclasses import dataclass as _dataclass
 from typing import (
     List,
     Union,
@@ -7,8 +6,7 @@ from typing import (
     Container,
     Callable,
     FrozenSet,
-    Iterable,
-    TypeVar
+    Iterable
 )
 
 Boolean = bool
@@ -29,67 +27,16 @@ TupleTuple = Tuple[Tuple]
 ContainerContainer = Container[Container]
 
 
-# Signatures génériques
-#
-# Les variables ci-dessous relient les types des arguments et du résultat
-# d'une primitive, par exemple :
-#
-#     def remove(value: ItemT, container: CollT[ItemT]) -> CollT[ItemT]
-#
-# se lit « value est du type des éléments du conteneur, et le résultat est
-# un conteneur de même sorte (frozenset ou tuple) et de mêmes éléments ».
-#
-# Python ne permet pas d'écrire S[T] avec S = TypeVar("S", tuple, frozenset) :
-# un TypeVar n'est pas indiçable. Les variables de conteneur sont donc des
-# objets ContainerVar, indiçables. Les noms T et S sont évités car T est déjà
-# la constante True de constants.py.
-
-ItemT = TypeVar("ItemT")
-OtherItemT = TypeVar("OtherItemT")
-
-
-class ContainerVar:
-    """
-    Variable de sorte de conteneur dans une signature générique.
-
-    CollT[ItemT] désigne un conteneur d'éléments ItemT dont la sorte
-    (frozenset ou tuple) est la même partout où CollT apparaît dans une même
-    signature.
-    """
-
-    def __init__(self, name, kinds=(frozenset, tuple)):
-        self.__name__ = name
-        self.kinds = tuple(kinds)
-
-    def __getitem__(self, item_type):
-        return ContainerOf(self, item_type)
-
-    def __repr__(self):
-        return self.__name__
-
-    # Une variable est désignée par son nom : copies et pickle (processus
-    # de travail) retrouvent le même objet.
-    def __reduce__(self):
-        return self.__name__
-
-    def __copy__(self):
-        return self
-
-    def __deepcopy__(self, memo):
-        return self
-
-
-@_dataclass(frozen=True)
-class ContainerOf:
-    """Application d'une variable de conteneur à un type d'élément."""
-
-    kind: ContainerVar
-    item: Any
-
-    def __repr__(self):
-        return f"{self.kind!r}[{self.item!r}]"
-
-
-CollT = ContainerVar("CollT")
-OtherCollT = ContainerVar("OtherCollT")
-InnerCollT = ContainerVar("InnerCollT")
+# Signatures génériques : variables de type des primitives de conteneur
+# (ItemT, CollT, ...). Elles sont définies dans type_variables.py pour que
+# leurs objets restent les mêmes si arc_types.py est réexécuté, comme le fait
+# dsl_model/utils.py (load_module).
+from type_variables import (
+    ItemT,
+    OtherItemT,
+    ContainerVar,
+    ContainerOf,
+    CollT,
+    OtherCollT,
+    InnerCollT,
+)

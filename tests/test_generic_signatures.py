@@ -391,3 +391,33 @@ def test_facts_override_the_expected_result(registry):
         FrozenSet[IntegerTuple],
         Tuple[IntegerTuple, ...],
     ]
+
+
+def test_reloading_arc_types_keeps_the_same_variables(registry):
+    # dsl_model/utils.py réexécute arc_types.py (load_module) et remplace le
+    # module dans sys.modules. Les variables doivent rester les mêmes objets :
+    # sinon dsl.py et search/generics.py, importés avant, ne reconnaissent
+    # plus les motifs construits après coup.
+    import importlib.util
+    import sys
+
+    previous = sys.modules["arc_types"]
+    spec = importlib.util.spec_from_file_location("arc_types", previous.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules["arc_types"] = module
+
+    try:
+        assert module.ItemT is ItemT
+        assert module.CollT is CollT
+        assert module.ContainerOf is ContainerOf
+
+        signature = registry["primitives"]["remove"]["generic_signature"]
+
+        assert signature.parameter_types == (module.ItemT, module.CollT[module.ItemT])
+        assert unify(module.CollT[module.ItemT], FrozenSet[int], {}) == {
+            CollT: frozenset({frozenset}),
+            ItemT: int,
+        }
+    finally:
+        sys.modules["arc_types"] = previous

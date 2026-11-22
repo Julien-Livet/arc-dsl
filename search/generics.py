@@ -39,7 +39,7 @@ from typing import (
     get_origin,
 )
 
-from arc_types import ContainerOf, ContainerVar
+from type_variables import ContainerOf, ContainerVar
 from search.type_system import _is_union, is_compatible
 
 KINDS = (frozenset, tuple)
