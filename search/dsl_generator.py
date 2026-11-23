@@ -1,7 +1,7 @@
 """Génération de programmes DSL guidée par les types."""
 
 from collections.abc import Callable as ABCCallable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, get_origin, get_args, Union
 import types
 from itertools import product
@@ -17,6 +17,7 @@ from search.expression_validator import (
 )
 from search.type_system import get_return_type, get_parameters
 from search.function_types import FunctionType
+from search.generics import GenericCall
 import random
 
 
@@ -36,6 +37,8 @@ class PendingExpression:
     parameter_types: tuple
     return_type: Any
     depth: int = 0
+    # Appel d'une primitive générique : liaisons des variables de type.
+    generic: Any = None
 
 
 @dataclass(frozen=True)
@@ -513,6 +516,8 @@ def create_pending_expression(name, registry):
         if parameter["required"]
     ]
 
+    signature = primitive_info.get("generic_signature")
+
     return PendingExpression(
         name=name,
         arguments=[None] * len(required_parameters),
@@ -521,17 +526,44 @@ def create_pending_expression(name, registry):
             for parameter in required_parameters
         ),
         return_type=get_return_type(primitive_info),
+        generic=GenericCall(signature) if signature is not None else None,
     )
+
+
+def get_slot_type(pending, index):
+    """
+    Retourne le type attendu pour un argument d'une expression incomplète.
+
+    Pour une primitive générique, il tient compte des arguments déjà
+    rattachés : dans remove(ZERO, ...), le conteneur doit contenir des
+    entiers.
+    """
+    if pending.generic is not None:
+        return pending.generic.parameter_type(index)
+
+    return pending.parameter_types[index]
+
+
+def bind_slot(pending, index, actual_type):
+    """Met à jour les liaisons d'une primitive générique après un argument."""
+    if pending.generic is None:
+        return True
+
+    generic = pending.generic.with_argument(index, actual_type)
+
+    if generic is None:
+        return False
+
+    pending.generic = generic
+
+    return True
 
 
 def get_next_argument_goal(pending):
     """Retourne le type attendu pour le prochain argument."""
-    for argument, expected_type in zip(
-        pending.arguments,
-        pending.parameter_types,
-    ):
+    for index, argument in enumerate(pending.arguments):
         if argument is None:
-            return expected_type
+            return get_slot_type(pending, index)
 
     return None
 
@@ -664,9 +696,12 @@ def generate_expression(
 
         success = True
 
-        for index, argument_type in enumerate(
-            pending.parameter_types
-        ):
+        if pending.generic is not None:
+            pending.generic = pending.generic.expecting(expected_type)
+
+        for index in range(len(pending.parameter_types)):
+            argument_type = get_slot_type(pending, index)
+
             if isinstance(argument_type, FunctionType):
                 argument = generate_function_reference(
                     argument_type,
@@ -681,6 +716,16 @@ def generate_expression(
                 )
 
             if argument is None:
+                success = False
+                break
+
+            try:
+                argument_actual_type = infer_expression_type(argument, registry)
+            except (TypeError, ValueError):
+                success = False
+                break
+
+            if not bind_slot(pending, index, argument_actual_type):
                 success = False
                 break
 
@@ -877,16 +922,7 @@ def get_current_goal(state):
     if not state.stack:
         return state.expected_type
 
-    pending = state.stack[-1]
-
-    for argument, expected_type in zip(
-        pending.arguments,
-        pending.parameter_types,
-    ):
-        if argument is None:
-            return expected_type
-
-    return None
+    return get_next_argument_goal(state.stack[-1])
 
 
 def slot_accepts_function(expected_type):
@@ -943,7 +979,7 @@ def attach_expression(state, expression, registry):
                 if argument is None
             )
 
-            expected_type = parent.parameter_types[index]
+            expected_type = get_slot_type(parent, index)
             owner = f"Argument incompatible pour {parent.name}"
         else:
             parent = None
@@ -975,6 +1011,12 @@ def attach_expression(state, expression, registry):
             state.result = expression
             state.finished = True
             return state
+
+        # Primitive générique : l'argument précise les emplacements suivants.
+        if not bind_slot(parent, index, actual_type):
+            raise TypeError(
+                f"{owner} : {actual_type}, attendu : {expected_type}"
+            )
 
         parent.arguments[index] = expression
 
@@ -1036,12 +1078,14 @@ def select_symbol(state, symbol, registry):
     if isinstance(symbol, str):
         pending = create_pending_expression(symbol, registry)
 
-        pending = PendingExpression(
-            name=pending.name,
-            arguments=pending.arguments,
-            parameter_types=pending.parameter_types,
-            return_type=pending.return_type,
+        pending = replace(
+            pending,
             depth=len(state.stack),
+            generic=(
+                pending.generic.expecting(get_current_goal(state))
+                if pending.generic is not None
+                else None
+            ),
         )
 
         # Primitive sans argument.

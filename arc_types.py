@@ -25,3 +25,18 @@ Element = Union[Object, Grid]
 Piece = Union[Grid, Patch]
 TupleTuple = Tuple[Tuple]
 ContainerContainer = Container[Container]
+
+
+# Signatures génériques : variables de type des primitives de conteneur
+# (ItemT, CollT, ...). Elles sont définies dans type_variables.py pour que
+# leurs objets restent les mêmes si arc_types.py est réexécuté, comme le fait
+# dsl_model/utils.py (load_module).
+from type_variables import (
+    ItemT,
+    OtherItemT,
+    ContainerVar,
+    ContainerOf,
+    CollT,
+    OtherCollT,
+    InnerCollT,
+)
